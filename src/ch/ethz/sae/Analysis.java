@@ -8,30 +8,32 @@ import apron.ApronException;
 import apron.Environment;
 import apron.Manager;
 import apron.MpqScalar;
-
+import apron.Polka;
 import apron.Texpr1CstNode;
 import apron.Texpr1Intern;
 import apron.Texpr1Node;
 import apron.Texpr1VarNode;
-
-
 import soot.IntegerType;
 import soot.Local;
 import soot.SootClass;
-
 import soot.Unit;
 import soot.Value;
-
 import soot.jimple.BinopExpr;
 import soot.jimple.DefinitionStmt;
-
 import soot.jimple.IntConstant;
-
 import soot.jimple.Stmt;
-
 import soot.jimple.internal.AbstractBinopExpr;
-
+import soot.jimple.internal.JAddExpr;
+import soot.jimple.internal.JDivExpr;
+import soot.jimple.internal.JEqExpr;
+import soot.jimple.internal.JGeExpr;
+import soot.jimple.internal.JGtExpr;
 import soot.jimple.internal.JIfStmt;
+import soot.jimple.internal.JLeExpr;
+import soot.jimple.internal.JLtExpr;
+import soot.jimple.internal.JMulExpr;
+import soot.jimple.internal.JNeExpr;
+import soot.jimple.internal.JSubExpr;
 import soot.jimple.internal.JimpleLocal;
 import soot.toolkits.graph.UnitGraph;
 import soot.toolkits.scalar.ForwardBranchedFlowAnalysis;
@@ -83,7 +85,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	/* Instantiate a domain. */
 	private void instantiateDomain() {
 		// Initialize variable 'man' to Polyhedra
-
+		man = new Polka(true);
 	}
 
 	/* === Constructor === */
@@ -116,6 +118,27 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Value right = expr.getOp2();
 
 		// handle JEqExpr, JNeExpr and the rest...
+		if(expr instanceof JEqExpr){
+			JEqExpr j = new JEqExpr(left,right);
+			
+		} else if(expr instanceof JGeExpr){
+			JGeExpr j = new JGeExpr(left,right);
+			
+		} else if(expr instanceof JGtExpr){
+			JGtExpr j = new JGtExpr(left,right);
+			
+		} else if(expr instanceof JLeExpr){
+			JLeExpr j = new JLeExpr(left,right);
+			
+		} else if(expr instanceof JLtExpr){
+			JLtExpr j = new JLtExpr(left,right);
+			
+		} else if(expr instanceof JNeExpr){
+			JNeExpr j = new JNeExpr(left,right);
+			
+		} else {
+			unhandled("expr of type " + expr.getType());
+		}
 	}
 
 	// handle assignments
@@ -146,10 +169,26 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					o.assign(man, varName, xp, null);
 				}
 			} else if (right instanceof BinopExpr) {
-
-
+				BinopExpr b = (BinopExpr) right;
+				Value l = (Value) b.getOp1();
+				Value r = (Value) b.getOp2();
+				if(right instanceof JMulExpr){
+					JMulExpr j = new JMulExpr(l,r);
+					
+				} else if(right instanceof JSubExpr){
+					JSubExpr j = new JSubExpr(l,r);
+					
+				} else if(right instanceof JAddExpr){
+					JAddExpr j = new JAddExpr(l,r);
+					
+				} else if(right instanceof JDivExpr){
+					JDivExpr j = new JDivExpr(l,r);
+					
+				} else {
+					unhandled("expr of type " + right.getType());
+				}
 			} else {
-
+				unhandled("expr of type " + right.getType());
 			}
 		}
 	}
@@ -169,9 +208,14 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 			if (s instanceof DefinitionStmt) {
 				// call handleDef
-
+				Value left = ((DefinitionStmt) s).getLeftOp();
+				Value right = ((DefinitionStmt) s).getRightOp();
+				handleDef(o,left,right);
+				
 			} else if (s instanceof JIfStmt) {
 				// call handleIf
+				AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
+				handleIf(cond,in,new AWrapper(o),new AWrapper(o_branchout));
 			}
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
@@ -182,7 +226,14 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	// Initialize starting label (top)
 	@Override
 	protected AWrapper entryInitialFlow() {
-		return null;
+		Abstract1 top = null;
+		try {
+			top = new Abstract1(man,env);
+		} catch (ApronException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return new AWrapper(top);	
 	}
 
 	// Implement Join
@@ -194,7 +245,14 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	// Initialize all labels (bottom)
 	@Override
 	protected AWrapper newInitialFlow() {
-		return null;
+		Abstract1 bot = null;
+		try {
+			bot = new Abstract1(man,env,true);
+		} catch (ApronException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return new AWrapper(bot);	
 	}
 
 	@Override
