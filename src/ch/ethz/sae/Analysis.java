@@ -97,10 +97,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 		buildEnvironment();
 		instantiateDomain();
+		System.out.println("successfully constructed");
 
 	}
 
 	void run() {
+		System.out.println("called run");
 		doAnalysis();
 	}
 
@@ -117,6 +119,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Value left = expr.getOp1();
 		Value right = expr.getOp2();
 
+		System.out.println("called handleIf with expr: " + expr.toString());
+		
 		// handle JEqExpr, JNeExpr and the rest...
 		if(expr instanceof JEqExpr){
 			JEqExpr j = new JEqExpr(left,right);
@@ -137,14 +141,17 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			JNeExpr j = new JNeExpr(left,right);
 			
 		} else {
-			unhandled("expr of type " + expr.getType());
+			unhandled("expr of type 1 " + expr.getType());
 		}
 	}
 
 	// handle assignments
 	private void handleDef(Abstract1 o, Value left, Value right)
 			throws ApronException {
-
+		
+		System.out.println("handleDef called with: ");
+		System.out.println("    left = " + left.getType());
+		System.out.println("    right = " + right.getType());
 		Texpr1Node lAr = null;
 		Texpr1Node rAr = null;
 		Texpr1Intern xp = null;
@@ -185,10 +192,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					JDivExpr j = new JDivExpr(l,r);
 					
 				} else {
-					unhandled("expr of type " + right.getType());
+					unhandled("expr of type 2 " + right.getType());
 				}
 			} else {
-				unhandled("expr of type " + right.getType());
+				System.out.println(right.toString());
+				unhandled("expr of type 3 " + right.getType());
 			}
 		}
 	}
@@ -201,6 +209,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Abstract1 in = ((AWrapper) current).get();
 
 		Abstract1 o;
+		
+		System.out.println("flowThrough called with: ");
+		System.out.println("    current: " + s.toString());
+		System.out.println("    op: " + op.toString());
 
 		try {
 			o = new Abstract1(man, in);
@@ -210,15 +222,19 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				// call handleDef
 				Value left = ((DefinitionStmt) s).getLeftOp();
 				Value right = ((DefinitionStmt) s).getRightOp();
+				System.out.println("    def st left: " + left.getType() + " " + left.toString());
+				System.out.println("    def st right: " + right.getType() + " " + right.toString());
 				handleDef(o,left,right);
 				
 			} else if (s instanceof JIfStmt) {
 				// call handleIf
 				AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
+				System.out.println("    condition: " + cond.toString());
 				handleIf(cond,in,new AWrapper(o),new AWrapper(o_branchout));
 			}
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
+			System.out.println("reached catch block in flowThrough");
 			e.printStackTrace();
 		}
 	}
@@ -226,11 +242,14 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	// Initialize starting label (top)
 	@Override
 	protected AWrapper entryInitialFlow() {
+		System.out.println("called entryIntitialFlow");
 		Abstract1 top = null;
 		try {
 			top = new Abstract1(man,env);
+			System.out.println(top.toString());
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
+			System.out.println("reached catch blcok of entryInitialFlow");
 			e.printStackTrace();
 		}
 		return new AWrapper(top);	
@@ -239,17 +258,22 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	// Implement Join
 	@Override
 	protected void merge(AWrapper src1, AWrapper src2, AWrapper trg) {
-
+		System.out.println("merge called with src1: " + src1.toString());
+		System.out.println("                  src2: " + src2.toString());
+		System.out.println("                  trg: " + trg.toString());
 	}
 
 	// Initialize all labels (bottom)
 	@Override
 	protected AWrapper newInitialFlow() {
+		System.out.println("called newInitialFlow");
 		Abstract1 bot = null;
 		try {
 			bot = new Abstract1(man,env,true);
+			System.out.println(bot.toString());
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
+			System.out.println("reached catch block in newInitialFlow");
 			e.printStackTrace();
 		}
 		return new AWrapper(bot);	
@@ -257,6 +281,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 	@Override
 	protected void copy(AWrapper source, AWrapper dest) {
+		System.out.println("called copy");
 		dest.copy(source);
 	}
 
