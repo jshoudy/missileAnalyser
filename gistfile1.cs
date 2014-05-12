@@ -30,9 +30,9 @@ namespace SignalRSelfHost
     }
     public class MyHub : Hub
     {
-        public void MyFunction()
+        public void SomeFunction(MemberInformation member)
         {
-            Clients.All.addMessage(name, message);
+            Clients.All.functionOneClient(new MemeberInformation("hehe", member.LastName));
         }
     }
 }  
