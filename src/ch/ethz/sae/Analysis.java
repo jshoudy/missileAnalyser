@@ -202,8 +202,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			} else if (right instanceof ThisRef){
 				System.out.println("We are in a method in class " + right.getType());
 			} else {
-				System.out.println(right.toString());
-				unhandled("right of type 4 " + right);
+				unhandled(" (in handleDef) right of type '" + right + "' ("+ right.getClass() + ")");
 			}
 		}
 	}
