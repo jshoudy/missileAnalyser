@@ -20,14 +20,18 @@ import soot.Unit;
 import soot.Value;
 import soot.jimple.BinopExpr;
 import soot.jimple.DefinitionStmt;
+import soot.jimple.Expr;
+import soot.jimple.IdentityStmt;
 import soot.jimple.IntConstant;
 import soot.jimple.Stmt;
+import soot.jimple.ThisRef;
 import soot.jimple.internal.AbstractBinopExpr;
 import soot.jimple.internal.JAddExpr;
 import soot.jimple.internal.JDivExpr;
 import soot.jimple.internal.JEqExpr;
 import soot.jimple.internal.JGeExpr;
 import soot.jimple.internal.JGtExpr;
+import soot.jimple.internal.JIdentityStmt;
 import soot.jimple.internal.JIfStmt;
 import soot.jimple.internal.JLeExpr;
 import soot.jimple.internal.JLtExpr;
@@ -158,7 +162,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 		if (left instanceof JimpleLocal) {
 			String varName = ((JimpleLocal) left).getName();
-
+			System.out.println("    varName = " + varName);
 			if (right instanceof IntConstant) {
 				/* Example of handling assignment to an integer constant */
 				IntConstant c = ((IntConstant) right);
@@ -179,9 +183,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				BinopExpr b = (BinopExpr) right;
 				Value l = (Value) b.getOp1();
 				Value r = (Value) b.getOp2();
+				
 				if(right instanceof JMulExpr){
 					JMulExpr j = new JMulExpr(l,r);
-					
 				} else if(right instanceof JSubExpr){
 					JSubExpr j = new JSubExpr(l,r);
 					
@@ -194,9 +198,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				} else {
 					unhandled("expr of type 2 " + right.getType());
 				}
+				
+			} else if (right instanceof ThisRef){
+				System.out.println("We are in a method in class " + right.getType());
 			} else {
 				System.out.println(right.toString());
-				unhandled("expr of type 3 " + right.getType());
+				unhandled("right of type 4 " + right);
 			}
 		}
 	}
@@ -211,7 +218,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Abstract1 o;
 		
 		System.out.println("flowThrough called with: ");
-		System.out.println("    current: " + s.toString());
+		System.out.println("    in: " + in.toString());
 		System.out.println("    op: " + op.toString());
 
 		try {
@@ -283,6 +290,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	protected void copy(AWrapper source, AWrapper dest) {
 		System.out.println("called copy");
 		dest.copy(source);
+		System.out.println("finished copy");
 	}
 
 	/* It may be useful for widening */

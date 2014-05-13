@@ -9,6 +9,7 @@ public class AWrapper {
 
 	public AWrapper(Abstract1 e) {
 		elem = e;
+		man = e.getCreationManager();
 	}
 
 	public Abstract1 get() {
@@ -34,7 +35,7 @@ public class AWrapper {
 
 	public boolean equals(Object o) {
 		Abstract1 t = ((AWrapper) o).get();
-		try {
+		try {;
 			if (elem.isEqual(man, t) != elem.isIncluded(man, t))
 				;
 			
