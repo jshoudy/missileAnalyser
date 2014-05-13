@@ -3,7 +3,7 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry exported="true" kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="soot-2.5.0.jar"/>
-	<classpathentry kind="lib" path="/home/sae/apron/japron/apron.jar"/>
+	<classpathentry kind="lib" path="/home/sae/apron/japron/apron.jar" sourcepath="/home/sae/apron/japron"/>
 	<classpathentry kind="lib" path="/home/sae/apron/japron/gmp.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

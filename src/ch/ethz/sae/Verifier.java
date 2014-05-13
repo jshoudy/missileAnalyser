@@ -30,7 +30,6 @@ public class Verifier {
 					method.retrieveActiveBody()), c);
 			
 			analysis.run();
-			
 			//TODO: use analysis results to check safety
 
 		}
