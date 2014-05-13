@@ -1,11 +1,14 @@
 package ch.ethz.sae;
 
+import java.security.interfaces.DSAKey;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
 import apron.Abstract1;
 import apron.ApronException;
 import apron.Environment;
+import apron.Interval;
 import apron.Manager;
 import apron.MpqScalar;
 import apron.Polka;
@@ -15,15 +18,25 @@ import apron.Texpr1Node;
 import apron.Texpr1VarNode;
 import soot.IntegerType;
 import soot.Local;
+import soot.RefType;
 import soot.SootClass;
+import soot.SootField;
+import soot.SootMethod;
+import soot.SootMethodRef;
+import soot.Type;
 import soot.Unit;
 import soot.Value;
+import soot.ValueBox;
 import soot.jimple.BinopExpr;
 import soot.jimple.DefinitionStmt;
 import soot.jimple.Expr;
 import soot.jimple.IdentityStmt;
+import soot.jimple.InstanceInvokeExpr;
 import soot.jimple.IntConstant;
+import soot.jimple.InvokeExpr;
+import soot.jimple.InvokeStmt;
 import soot.jimple.NewExpr;
+import soot.jimple.SpecialInvokeExpr;
 import soot.jimple.Stmt;
 import soot.jimple.ThisRef;
 import soot.jimple.internal.AbstractBinopExpr;
@@ -99,10 +112,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 		this.g = g;
 		this.jclass = jc;
-
+		this.constructorCalls = new HashMap<String, List<Value>>();
+		
 		buildEnvironment();
 		instantiateDomain();
-		sprint("successfully constructed");
+		sprint("successfully constructed " + jc);
 
 	}
 
@@ -174,21 +188,36 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				/* Example of handling assignment to an integer constant */
 				IntConstant c = ((IntConstant) right);
 
-				rAr = new Texpr1CstNode(new MpqScalar(c.value));
+				rAr = new Texpr1CstNode(new MpqScalar(c.value)); 
 				xp = new Texpr1Intern(env, rAr);
 
 				sprint("    Assigning IntConstant of value " + c.value);
 				o.assign(man, varName, xp, null);
+				
+				
 			} else if (right instanceof JimpleLocal) {
+				
+				
 				sprint("Entering JimpleLocal");
+				String name = ((JimpleLocal) right).getName();
+				List<Value> constructorCall = constructorCalls.get(name);
+				if(constructorCall != null){
+					constructorCalls.remove(name);
+					constructorCalls.put(varName, constructorCall);
+				}
+				
 				/* Example of handling assignment to a local variable */
-				if (env.hasVar(((JimpleLocal) right).getName())) {
-					rAr = new Texpr1VarNode(((JimpleLocal) right).getName());
+				if (env.hasVar(name)){
+					rAr = new Texpr1VarNode(name);
 					xp = new Texpr1Intern(env, rAr);
 					
-					sprint("Assigning JimpleLocal with name " + ((JimpleLocal) right).getName());
+					sprint("Assigning JimpleLocal with name " + name);
 					o.assign(man, varName, xp, null);
+				}else{
+					sprint("env.hasVar("+name+") is false");
 				}
+				
+				
 			} else if (right instanceof NewExpr){
 				sprint("Entering NewExpr");
 				NewExpr newExpr = (NewExpr)right;
@@ -246,8 +275,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				// call handleDef
 				Value left = ((DefinitionStmt) s).getLeftOp();
 				Value right = ((DefinitionStmt) s).getRightOp();
-				sprint("DefinitionStmt left: " + left.getType() + " " + left.toString());
-				sprint("DefinitionStmt right: " + right.getType() + " " + right.toString());
 				handleDef(o,left,right);
 				
 			} else if (s instanceof JIfStmt) {
@@ -255,6 +282,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
 				sprint("condition: " + cond.toString());
 				handleIf(cond,in,new AWrapper(o),new AWrapper(o_branchout));
+			} else if (s instanceof InvokeStmt){
+				// call handleInvoke
+				InvokeStmt stmt = (InvokeStmt)s;
+				handleMethodInvoke(o, stmt);
 			} else  {
 				sprint("Unhandled operation: " + last(s.getClass().toString()));
 			}
@@ -263,6 +294,61 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			sprint("reached catch block in flowThrough");
 			e.printStackTrace();
 		}
+		ident--;
+	}
+
+	private void handleMethodInvoke(Abstract1 o, InvokeStmt s) throws ApronException {
+		ident++;
+		sprint("Entering handleInvoke " + s);
+		InstanceInvokeExpr expr = (InstanceInvokeExpr)s.getInvokeExpr();
+		
+		if(expr instanceof SpecialInvokeExpr)
+		if(((SpecialInvokeExpr)expr).getMethodRef().name().equals("<init>"))
+		{
+			// This is constructor call
+			SpecialInvokeExpr initExpr = (SpecialInvokeExpr)expr;
+			JimpleLocal base = (JimpleLocal)initExpr.getBase();
+			sprint("Constructor call on "+ ((RefType)(base.getType())) +"!");
+			
+			for(Value v : initExpr.getArgs()){
+				sprint("  * Got argument: " + v);
+			}
+			sprint("Adding arguments (count: " + initExpr.getArgCount() + ") to this.constructorCalls with key: " + base);
+			constructorCalls.put(base.getName(), initExpr.getArgs());
+			return;
+		}
+		
+		// Normal method call
+		SootMethodRef method = expr.getMethodRef();
+		String className = method.declaringClass().getName();
+		JimpleLocal base = (JimpleLocal)expr.getBase();
+		if(method.name().equals("fire") && className.equals("MissileBattery")){
+			ident++;
+			
+			sprint("Entering MissileBattery.fire(int)");
+			Value instanceSizeOfBattery = constructorCalls.get(base.getName()).get(0);
+			sprint("MissileBattery constructed with battery size " + instanceSizeOfBattery);
+			if( expr.getArg(0) instanceof IntConstant){
+				int passedMissileIndex = ((IntConstant) expr.getArg(0)).value;
+				sprint("Passed Missile Index: " + passedMissileIndex);
+				if(instanceSizeOfBattery instanceof IntConstant){
+					int size = ((IntConstant)instanceSizeOfBattery).value;
+					if(0 <= passedMissileIndex && passedMissileIndex < size){
+						// OK :)
+					}else{
+						sprint("  ERROR! THIS WILL CRASH");
+					}
+				}
+			}else if ( expr.getArg(0) instanceof JimpleLocal){
+				JimpleLocal arg0 = (JimpleLocal) expr.getArg(0);
+				Interval v = o.getBound(man, arg0.getName());
+			}else{
+				unhandled("type of _arg0 not IntConstant or JimpleLocal");
+			}
+
+			ident--;
+		}
+		
 		ident--;
 	}
 
@@ -332,6 +418,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	public static String reals[] = { "foo" };
 	public SootClass jclass;
 	private int ident = 0;
+	private HashMap<String, List<Value>> constructorCalls;
 	
 	public String last(String s){
 		return s.substring(s.lastIndexOf(".")+1);
@@ -343,5 +430,4 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		}
 		System.out.println(what);
 	}
-
 }
