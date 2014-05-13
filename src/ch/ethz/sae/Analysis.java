@@ -23,6 +23,7 @@ import soot.jimple.DefinitionStmt;
 import soot.jimple.Expr;
 import soot.jimple.IdentityStmt;
 import soot.jimple.IntConstant;
+import soot.jimple.NewExpr;
 import soot.jimple.Stmt;
 import soot.jimple.ThisRef;
 import soot.jimple.internal.AbstractBinopExpr;
@@ -179,6 +180,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					xp = new Texpr1Intern(env, rAr);
 					o.assign(man, varName, xp, null);
 				}
+			} else if (right instanceof NewExpr){
+				NewExpr newExpr = (NewExpr)right;
+				System.out.println(varName + " = " + right);
 			} else if (right instanceof BinopExpr) {
 				BinopExpr b = (BinopExpr) right;
 				Value l = (Value) b.getOp1();
