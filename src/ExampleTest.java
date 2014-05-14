@@ -1,8 +1,9 @@
 public class ExampleTest {
   public static void l() {
-    MissileBattery r = new MissileBattery(6);
+	int q = 5;
+    MissileBattery r = new MissileBattery(q);
     int i = 20;
-    r.fire(33);
+    r.fire(2);
   }
 }
 

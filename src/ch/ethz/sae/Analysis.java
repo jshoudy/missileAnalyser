@@ -172,7 +172,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		ident++;
 		
 		sprint("handleDef called with " + 
-				right.getClass().toString().substring(right.getClass().toString().lastIndexOf(".")+1) + ": "
+				last(right.getClass().toString()) + ": "
 				+ left + " = " + right);
 		
 		Texpr1Node lAr = null;
@@ -325,31 +325,51 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		if(method.name().equals("fire") && className.equals("MissileBattery")){
 			ident++;
 			
-			sprint("Entering MissileBattery.fire(int)");
-			Value instanceSizeOfBattery = constructorCalls.get(base.getName()).get(0);
-			sprint("MissileBattery constructed with battery size " + instanceSizeOfBattery);
-			if( expr.getArg(0) instanceof IntConstant){
-				int passedMissileIndex = ((IntConstant) expr.getArg(0)).value;
-				sprint("Passed Missile Index: " + passedMissileIndex);
-				if(instanceSizeOfBattery instanceof IntConstant){
-					int size = ((IntConstant)instanceSizeOfBattery).value;
-					if(0 <= passedMissileIndex && passedMissileIndex < size){
-						// OK :)
-					}else{
-						sprint("  ERROR! THIS WILL CRASH");
-					}
-				}
-			}else if ( expr.getArg(0) instanceof JimpleLocal){
-				JimpleLocal arg0 = (JimpleLocal) expr.getArg(0);
-				Interval v = o.getBound(man, arg0.getName());
-			}else{
-				unhandled("type of _arg0 not IntConstant or JimpleLocal");
-			}
+			handleMissileBatteryFire(base, expr, o);
 
 			ident--;
 		}
 		
 		ident--;
+	}
+	
+	private void handleMissileBatteryFire(JimpleLocal base, InstanceInvokeExpr expr, Abstract1 o) throws ApronException{
+		sprint("Entering MissileBattery.fire(int)");
+		Value instanceSizeOfBattery = constructorCalls.get(base.getName()).get(0);
+		sprint("MissileBattery constructed with battery size "
+				+ instanceSizeOfBattery + " (" + last(instanceSizeOfBattery.getClass().toString()) + ")");
+		
+		if( expr.getArg(0) instanceof IntConstant){
+			int passedMissileIndex = ((IntConstant) expr.getArg(0)).value;
+			sprint("Passed Missile Index: " + passedMissileIndex);
+			
+			if(instanceSizeOfBattery instanceof IntConstant){
+				int size = ((IntConstant)instanceSizeOfBattery).value;
+				if(0 <= passedMissileIndex && passedMissileIndex < size){
+					// OK :)
+				}else{
+					sprint("  ERROR! THIS WILL CRASH (IntConstant vs IntConstant)");
+				}
+			}else if(instanceSizeOfBattery instanceof JimpleLocal){
+				// instanceSizeOfBattery was given by a JimpleLocal
+				JimpleLocal local = (JimpleLocal)instanceSizeOfBattery;
+				Interval interval = o.getBound(man, local.getName());
+				if(new Interval(passedMissileIndex, passedMissileIndex).cmp(interval) <= 0){
+					// ok :)
+				}else{
+					sprint("  ERROR! THIS _MAY_ CRASH (IntConstant (" +
+							passedMissileIndex + ") vs Interval JimpleLocal ("
+							+ interval + "))");
+				}
+			}else{
+				unhandled("(handleMissileBatteryFire) instanceSizeOfBattery type other than IntConstant or JimpleLocal");
+			}
+		}else if ( expr.getArg(0) instanceof JimpleLocal){
+			JimpleLocal arg0 = (JimpleLocal) expr.getArg(0);
+			Interval v = o.getBound(man, arg0.getName());
+		}else{
+			unhandled("type of _arg0 not IntConstant or JimpleLocal");
+		}
 	}
 
 	// Initialize starting label (top)
