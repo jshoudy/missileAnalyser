@@ -66,7 +66,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	private void recordIntLocalVars() {
 
 		Chain<Local> locals = g.getBody().getLocals();
-
+		
 		int count = 0;
 		Iterator<Local> it = locals.iterator();
 		while (it.hasNext()) {
@@ -116,6 +116,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		this.g = g;
 		this.jclass = jc;
 		this.constructorCalls = new HashMap<String, List<Value>>();
+		this.store = new HashMap<String, Value>();
 		
 		buildEnvironment();
 		instantiateDomain();
@@ -508,6 +509,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			ident++;
 			String varName = ((JimpleLocal) left).getName();
 			sprint("varName = " + varName);
+			this.store.put(varName, right); // save it in the store
+			
 			if (right instanceof IntConstant) {
 				sprint("Entering IntConstant");
 				/* Example of handling assignment to an integer constant */
@@ -664,42 +667,19 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	
 	private void handleMissileBatteryFire(JimpleLocal base, InstanceInvokeExpr expr, Abstract1 o) throws ApronException{
 		sprint("Entering MissileBattery.fire(int)");
-		Value instanceSizeOfBattery = constructorCalls.get(base.getName()).get(0);
-		sprint("MissileBattery constructed with battery size "
-				+ instanceSizeOfBattery + " (" + last(instanceSizeOfBattery.getClass().toString()) + ")");
 		
-		if( expr.getArg(0) instanceof IntConstant){
-			int passedMissileIndex = ((IntConstant) expr.getArg(0)).value;
-			sprint("Passed Missile Index: " + passedMissileIndex);
-			
-			if(instanceSizeOfBattery instanceof IntConstant){
-				int size = ((IntConstant)instanceSizeOfBattery).value;
-				sprint("Missile size: " + size);
-				if(0 <= passedMissileIndex && passedMissileIndex < size){
-					// OK :)
-				}else{
-					sprint("  ERROR! THIS WILL CRASH (IntConstant vs IntConstant)");
-				}
-			}else if(instanceSizeOfBattery instanceof JimpleLocal){
-				// instanceSizeOfBattery was given by a JimpleLocal
-				JimpleLocal local = (JimpleLocal)instanceSizeOfBattery;
-				Interval interval = o.getBound(man, local.getName());
-				sprint("Missile size: " + local.getNumber());
-				if(new Interval(passedMissileIndex,passedMissileIndex).cmp(interval) <= 0){
-					// ok :)
-				}else{
-					sprint("  ERROR! THIS _MAY_ CRASH (IntConstant (" +
-							passedMissileIndex + ") vs Interval JimpleLocal ("
-							+ interval + "))");
-				}
-			}else{
-				unhandled("(handleMissileBatteryFire) instanceSizeOfBattery type other than IntConstant or JimpleLocal");
-			}
-		}else if ( expr.getArg(0) instanceof JimpleLocal){
-			JimpleLocal arg0 = (JimpleLocal) expr.getArg(0);
-			Interval v = o.getBound(man, arg0.getName());
+		int missileIdx = ((IntConstant)getUnderlyingValue(expr.getArg(0))).value;
+		int batterySize = ((IntConstant)getUnderlyingValue(this.constructorCalls.get(base.getName()).get(0))).value;
+		
+		// So after calling getUnderlyingValue we know that both of these are IntConstants
+		
+		if(missileIdx < 0){
+			sprint("** UNSAFE!! missileIdx (" + missileIdx + ") is less than zero");
+		}else if(missileIdx >= batterySize){
+			sprint("** UNSAFE!! missileIdx (" + missileIdx + ") is larger than batterySize (" + batterySize + ")");
+			isSafe = false;
 		}else{
-			unhandled("type of _arg0 not IntConstant or JimpleLocal");
+			sprint("OK:)");
 		}
 	}
 
@@ -769,7 +749,21 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	public static String reals[] = { "foo" };
 	public SootClass jclass;
 	private int ident = 0;
+	private HashMap<String, Value> store;
 	private HashMap<String, List<Value>> constructorCalls;
+	
+	public boolean isSafe = true;
+	
+	private Value getUnderlyingValue(Value value){
+		if(false == value instanceof JimpleLocal){
+			return value;
+		}
+		Value storedVal = this.store.get(((JimpleLocal)value).getName());
+		if(storedVal == null)
+			unhandled("(getUnderlyingValue) store has no key " + ((JimpleLocal)value).getName());
+		
+		return getUnderlyingValue(storedVal);
+	}
 	
 	public String last(String s){
 		return s.substring(s.lastIndexOf(".")+1);
