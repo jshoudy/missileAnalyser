@@ -31,7 +31,9 @@ public class Verifier {
 			
 			analysis.run();
 			//TODO: use analysis results to check safety
-
+			if(!analysis.isSafe){
+				programCorrectFlag = 0;
+			}
 		}
 		
 		if (programCorrectFlag == 1) {
