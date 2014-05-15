@@ -527,7 +527,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				String name = ((JimpleLocal) right).getName();
 				List<Value> constructorCall = constructorCalls.get(name);
 				if(constructorCall != null){
-					constructorCalls.remove(name);
 					constructorCalls.put(varName, constructorCall);
 				}
 				
