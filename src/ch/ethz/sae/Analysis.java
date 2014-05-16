@@ -15,6 +15,7 @@ import apron.Linterm1;
 import apron.Manager;
 import apron.MpqScalar;
 import apron.Polka;
+import apron.Texpr1BinNode;
 import apron.Texpr1CstNode;
 import apron.Texpr1Intern;
 import apron.Texpr1Node;
@@ -594,20 +595,52 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				Value l = (Value) b.getOp1();
 				Value r = (Value) b.getOp2();
 				
+				if(l instanceof IntConstant){
+					IntConstant c = ((IntConstant) l);
+					lAr = new Texpr1CstNode(new MpqScalar(c.value));
+				} else if(l instanceof JimpleLocal){
+					String name = ((JimpleLocal) l).getName();
+					if (env.hasVar(name)){
+						lAr = new Texpr1VarNode(name);
+					}else{
+						sprint("env.hasVar("+name+") is false");
+					}
+				} else {
+					unhandled("left value of binary operator " + l.getType());
+				}
+				
+				if(r instanceof IntConstant){
+					IntConstant c = ((IntConstant) r);
+					rAr = new Texpr1CstNode(new MpqScalar(c.value));
+				} else if(r instanceof JimpleLocal){
+					String name = ((JimpleLocal) r).getName();
+					if (env.hasVar(name)){
+						rAr = new Texpr1VarNode(name);
+					}else{
+						sprint("env.hasVar("+name+") is false");
+					}
+				} else {
+					unhandled("right value of binary operator " + r.getType());
+				}
+				
+				int opp = 0;
+				
 				if(right instanceof JMulExpr){
-					JMulExpr j = new JMulExpr(l,r);
+					opp = Texpr1BinNode.OP_MUL;
 				} else if(right instanceof JSubExpr){
-					JSubExpr j = new JSubExpr(l,r);
-					
+					opp = Texpr1BinNode.OP_SUB;
 				} else if(right instanceof JAddExpr){
-					JAddExpr j = new JAddExpr(l,r);
-					
+					opp = Texpr1BinNode.OP_ADD;
 				} else if(right instanceof JDivExpr){
-					JDivExpr j = new JDivExpr(l,r);
-					
+					opp = Texpr1BinNode.OP_DIV;
 				} else {
 					unhandled("expr of type 2 " + right.getType());
 				}
+				
+				Texpr1BinNode bin = new Texpr1BinNode(opp,lAr,rAr);
+				xp = new Texpr1Intern(env,bin);
+				sprint("Assigning BinopExpr of value " + bin.toString());
+				o.assign(man, varName, xp, null);
 				
 			} else if (right instanceof ThisRef){
 				sprint("We are in a method in class " + right.getType());
