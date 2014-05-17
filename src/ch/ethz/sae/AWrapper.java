@@ -51,7 +51,9 @@ public class AWrapper {
 		try {
 			if (elem.isTop(man))
 				return "<Top>";
-
+			if (elem.isBottom(man))
+				return "<Bottom>";
+			
 			return elem.toString();
 		} catch (ApronException e) {
 			System.err.println("toString failed");

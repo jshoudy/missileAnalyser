@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
+import apron.Abstract0;
 import apron.Abstract1;
 import apron.ApronException;
 import apron.Environment;
@@ -33,6 +34,7 @@ import soot.ValueBox;
 import soot.jimple.BinopExpr;
 import soot.jimple.DefinitionStmt;
 import soot.jimple.Expr;
+import soot.jimple.GotoStmt;
 import soot.jimple.IdentityStmt;
 import soot.jimple.InstanceInvokeExpr;
 import soot.jimple.IntConstant;
@@ -47,6 +49,7 @@ import soot.jimple.internal.JAddExpr;
 import soot.jimple.internal.JDivExpr;
 import soot.jimple.internal.JEqExpr;
 import soot.jimple.internal.JGeExpr;
+import soot.jimple.internal.JGotoStmt;
 import soot.jimple.internal.JGtExpr;
 import soot.jimple.internal.JIdentityStmt;
 import soot.jimple.internal.JIfStmt;
@@ -142,7 +145,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 		Value left = expr.getOp1();
 		Value right = expr.getOp2();
-
+		Interval v = in.getBound(man, left.toString());
+		
 		sprint("called handleIf with expr: " + expr.toString());
 		
 		// handles eq expr
@@ -161,6 +165,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
 					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
 					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
+					
 					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
 					//expression ex: for 5==x -> x-5>=0
 					Lincons1 linc1 = new Lincons1(1,exp1);
@@ -398,6 +403,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					//expression ex: x<5 -> 4-x>=0
 					Lincons1 linc = new Lincons1(1,exp);
 					sprint(linc.toString());
+					
+					
+					ow_branchout.get().meet(man, linc);
+					
+					
 				} else if(right instanceof JimpleLocal){
 					sprint("gt expr with local local");
 					String varl = left.toString();
@@ -577,6 +587,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			}
 			ident--;
 		}
+		
+	
 		ident--;
 	}
 
@@ -586,48 +598,58 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		ident++;
 		printGraph();
 		Stmt s = (Stmt) op;
-		Abstract1 in = ((AWrapper) current).get();
-		Abstract1 o = null;
-		Abstract1 o_branchout = null;
-		AWrapper ow = null;
-		AWrapper ow_branchout = null;	
-		
-		sprint("flowThrough called with " + last(s.getClass().toString()));
-		//sprint("    in: " + in.toString());
-		//sprint("    op: " + op.toString());
-
 		try {
-			o = new Abstract1(man, in);
-			o_branchout = new Abstract1(man, in);	
-			ow = new AWrapper(o);
-			ow_branchout = new AWrapper(o_branchout);
+			
+			Abstract1 in = current.get();
+			Abstract1 out = new Abstract1(man, in);
+			Abstract1 out_branchout = new Abstract1(man, in);
+			AWrapper out_wrapper = new AWrapper(out);
+			AWrapper out_branchout_wrapper = new AWrapper(out_branchout);	
+			
+			sprint("flowThrough called with " + last(s.getClass().toString()) + ", in: " + current);
 
 			if (s instanceof DefinitionStmt) {
 				// call handleDef
 				Value left = ((DefinitionStmt) s).getLeftOp();
 				Value right = ((DefinitionStmt) s).getRightOp();
-				handleDef(o,left,right);
-				
+				handleDef(out,left,right);
+				out_wrapper = new AWrapper(out);
+				sprint(out.toString());
 			} else if (s instanceof JIfStmt) {
 				// call handleIf
 				AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
 				sprint("condition: " + cond.toString());
-				handleIf(cond,in,ow,ow_branchout);
+				handleIf(cond,in,out_wrapper,out_branchout_wrapper);
 				
 			} else if (s instanceof InvokeStmt){
 				// call handleInvoke
 				InvokeStmt stmt = (InvokeStmt)s;
-				handleMethodInvoke(o, stmt);
+				handleMethodInvoke(out, stmt);
+			} else if (s instanceof GotoStmt){
+				GotoStmt stmt = (GotoStmt)s;
+				Unit target = stmt.getTarget();
+				flowThrough(current, target, fallOut, branchOuts);
 			} else  {
 				sprint("Unhandled operation: " + last(s.getClass().toString()));
 			}
+		
+			// (AWrapper current, Unit op, List<AWrapper> fallOut, List<AWrapper> branchOuts)
+
+			AWrapper out_copy = new AWrapper(out_wrapper.get());
+			fallOut.add(out_copy);
+			branchOuts.add(out_copy);
+			
+			sprint("out = " + out_copy);
+			sprint("out_branch = " + out_copy);
+			ident--;
+
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
 			sprint("reached catch block in flowThrough");
 			e.printStackTrace();
 		}
-		ident--;
 	}
+	
 
 	private void handleMethodInvoke(Abstract1 o, InvokeStmt s) throws ApronException {
 		ident++;
@@ -705,9 +727,17 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	@Override
 	protected void merge(AWrapper src1, AWrapper src2, AWrapper trg) {
 		ident++;
-		sprint("merge called with src1: " + src1.toString());
+		sprint("merge called with src1: " + src1.get().toString());
 		sprint("                  src2: " + src2.toString());
 		sprint("                  trg: " + trg.toString());
+		
+		try {
+			trg = new AWrapper(src1.get().joinCopy(man, src2.get()));
+		} catch (ApronException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		ident--;
 	}
 
@@ -731,9 +761,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 	@Override
 	protected void copy(AWrapper source, AWrapper dest) {
-		//sprint("called copy");
+		//sprint("called copy from " + source + " (" +source.get().hashCode(man) + ") to " + dest + "(" +dest.get().hashCode(man) + ")");
 		dest.copy(source);
-		//sprint("finished copy");
+	
 	}
 
 	/* It may be useful for widening */
