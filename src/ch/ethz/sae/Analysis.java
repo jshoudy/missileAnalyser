@@ -602,7 +602,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				Value left = ((DefinitionStmt) s).getLeftOp();
 				Value right = ((DefinitionStmt) s).getRightOp();
 				handleDef(out,left,right);
-				sprint(out.toString());
 			} else if (s instanceof JIfStmt) {
 				// call handleIf
 				AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
@@ -618,19 +617,26 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			}
 			
 			
-			AWrapper out_final_wrapper = new AWrapper(out);
-	        Iterator<AWrapper> it = fallOut.iterator();
-	        while (it.hasNext()) {
-	                copy(out_final_wrapper, it.next());
-	        }
-			
-			fallOut.add(out_final_wrapper);
-			branchOuts.add(out_branchout_wrapper);
-			sprint("fallOut = " + out_final_wrapper);
-			sprint("branchOuts = " + branchOuts);
-			
-			
-
+			// add output to fallOut 
+			{
+				AWrapper out_final_wrapper = new AWrapper(out);
+		        Iterator<AWrapper> it = fallOut.iterator();
+		        while (it.hasNext()) {
+		                copy(out_final_wrapper, it.next());
+		        }
+				fallOut.add(out_final_wrapper);
+			}
+			// add branched output to branchOuts 
+			{
+				AWrapper out_final_branchout_wrapper = new AWrapper(out_branchout);
+		        Iterator<AWrapper> it = branchOuts.iterator();
+		        while (it.hasNext()) {
+		                copy(out_final_branchout_wrapper, it.next());
+		        }
+				branchOuts.add(out_final_branchout_wrapper);
+			}
+			//sprint("fallOut = " + fallOut);
+			//sprint("branchOuts = " + branchOuts);
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
 			sprint("reached catch block in flowThrough");
