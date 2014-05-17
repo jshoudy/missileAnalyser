@@ -15,6 +15,7 @@ import apron.Linterm1;
 import apron.Manager;
 import apron.MpqScalar;
 import apron.Polka;
+import apron.Texpr1BinNode;
 import apron.Texpr1CstNode;
 import apron.Texpr1Intern;
 import apron.Texpr1Node;
@@ -144,9 +145,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Value right = expr.getOp2();
 
 		sprint("called handleIf with expr: " + expr.toString());
-		
+
+		Lincons1 fallthrough = null;
+		Lincons1 branchout = null;
+
 		// handles eq expr
-		//TODO: EXPRESSIONS NEED TO BE INTERSECTED IN EACH CASE
 		if(expr instanceof JEqExpr){
 			JEqExpr j = new JEqExpr(left,right);
 			if(left instanceof IntConstant){
@@ -156,18 +159,15 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				} else if(right instanceof JimpleLocal){
 					sprint("eq expr with int local");
 					String var = right.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) left);
-					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
-					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
-					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
-					//expression ex: for 5==x -> x-5>=0
-					Lincons1 linc1 = new Lincons1(1,exp1);
-					//expression ex: for 5==x -> 5-x>=0
-					Lincons1 linc2 = new Lincons1(1,exp2);
-					sprint(linc1.toString());
-					sprint(linc2.toString());
+					Linterm1 term = new Linterm1(var,new MpqScalar(1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*c.value));
+
+					//expression ex: for 5==x -> 5-x<>0
+					fallthrough = new Lincons1(Lincons1.DISEQ,exp);
+					//expression ex: for 5==x -> x-5=0
+					branchout = new Lincons1(Lincons1.EQ,exp);
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
 				}
@@ -175,48 +175,39 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				if(right instanceof IntConstant){
 					sprint("eq expr with local int");
 					String var = left.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) right);
-					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
-					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
-					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
-					//expression ex: for x==5 -> x-5>=0
-					Lincons1 linc1 = new Lincons1(1,exp1);
-					//expression ex: for x==5 -> 5-x >=0
-					Lincons1 linc2 = new Lincons1(1,exp2);
-					sprint(linc1.toString());
-					sprint(linc2.toString());
+					Linterm1 term = new Linterm1(var,new MpqScalar(1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*c.value));
+
+					//expression ex: for x==5 -> x-5<>0
+					fallthrough = new Lincons1(Lincons1.DISEQ,exp);
+					//expression ex: for x==5 -> x-5=0
+					branchout = new Lincons1(Lincons1.EQ,exp);
 				} else if(right instanceof JimpleLocal){
 					sprint("eq expr with local local");
 					String varl = left.toString();
 					String varr = right.toString();
-					sprint("left variable is: " + varl);
-					sprint("right variable is: " + varr);
-					
-					Linterm1 terml1 = new Linterm1(varl,new MpqScalar(1));
-					Linterm1 termr1 = new Linterm1(varr,new MpqScalar(-1));
-					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(-1));
-					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(1));
-					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{terml1, termr1},new MpqScalar(0));
-					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{terml2, termr2},new MpqScalar(0));
-					//expression ex: for x==q -> x-q>=0
-					Lincons1 linc1 = new Lincons1(1,exp1);
-					//expression ex: for x==q -> q-x>=0
-					Lincons1 linc2 = new Lincons1(1,exp2);
-					sprint(linc1.toString());
-					sprint(linc2.toString());
+
+					Linterm1 terml = new Linterm1(varl,new MpqScalar(1));
+					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml, termr},new MpqScalar(0));
+
+					//expression ex: for x==q -> x-q<>0
+					fallthrough = new Lincons1(Lincons1.DISEQ,exp);
+					//expression ex: for x==q -> x-q=0
+					branchout = new Lincons1(Lincons1.EQ,exp);
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
 				}
 			} else {
 				unhandled("eq expression with left of type: " + left.getType().toString());
 			}
-	
-		//handles gte expr 
+
+			//handles gte expr
 		} else if(expr instanceof JGeExpr){
 			JGeExpr j = new JGeExpr(left,right);
-			
+
 			if(left instanceof IntConstant){
 				if(right instanceof IntConstant){
 					// should never reach this block
@@ -224,13 +215,17 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				} else if(right instanceof JimpleLocal){
 					sprint("gte expr with int local");
 					String var = right.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) left);
-					Linterm1 term = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(c.value));
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(-1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(-1*c.value));
+
+					//expression ex: 5>=x -> x-5>0
+					fallthrough = new Lincons1(Lincons1.SUP,exp2);
 					//expression ex: 5>=x -> 5-x>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					branchout = new Lincons1(Lincons1.SUPEQ,exp1);
 				} else {
 					unhandled("ge expression with right of type: " + right.getType().toString());
 				}
@@ -238,38 +233,44 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				if(right instanceof IntConstant){
 					sprint("gte expr with local int");
 					String var = left.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) right);
-					Linterm1 term = new Linterm1(var,new MpqScalar(1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*c.value));
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
+
+					//expression ex: x>=5 -> 5-x>0
+					fallthrough = new Lincons1(Lincons1.SUP,exp2);
 					//expression ex: x>=5 -> x-5>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					branchout = new Lincons1(Lincons1.SUPEQ,exp1);
 				} else if(right instanceof JimpleLocal){
 					sprint("gte expr with local local");
 					String varl = left.toString();
 					String varr = right.toString();
-					sprint("left variable is: " + varl);
-					sprint("right variable is: " + varr);
-					Linterm1 terml = new Linterm1(varl,new MpqScalar(1));
-					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml,termr},new MpqScalar(0));
+
+					Linterm1 terml1 = new Linterm1(varl,new MpqScalar(1));
+					Linterm1 termr1 = new Linterm1(varr,new MpqScalar(-1));
+					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(-1));
+					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{terml1,termr1},new MpqScalar(0));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{terml2,termr2},new MpqScalar(0));
+
+					//expression ex: x>=q -> q-x>0
+					fallthrough = new Lincons1(Lincons1.SUP,exp2);
 					//expression ex: x>=q -> x-q>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
-					
-					
+					branchout = new Lincons1(Lincons1.SUPEQ,exp1);
 				} else {
 					unhandled("ge expression with right of type: " + right.getType().toString());
 				}
 			} else {
 				unhandled("ge expression with left of type: " + left.getType().toString());
 			}
-			
-		//handles gt expr
+
+			//handles gt expr
 		} else if(expr instanceof JGtExpr){
 			JGtExpr j = new JGtExpr(left,right);
-			
+
 			if(left instanceof IntConstant){
 				if(right instanceof IntConstant){
 					// should never reach this block
@@ -277,13 +278,17 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				} else if(right instanceof JimpleLocal){
 					sprint("gt expr with int local");
 					String var = right.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) left);
-					Linterm1 term = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(c.value-1));
-					//expression ex: 5>x -> 4-x>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
+
+					//expression ex: 5>x -> x-5>=0
+					fallthrough = new Lincons1(Lincons1.SUPEQ,exp1);
+					//expression ex: 5>x -> 5-x>0
+					branchout = new Lincons1(Lincons1.SUP,exp2);
 				} else {
 					unhandled("gt expression with right of type: " + right.getType().toString());
 				}
@@ -291,36 +296,44 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				if(right instanceof IntConstant){
 					sprint("gt expr with local int");
 					String var = left.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) right);
-					Linterm1 term = new Linterm1(var,new MpqScalar(1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*(c.value+1)));
-					//expression ex: x>5 -> x-6>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
+
+					//expression ex: x>5 -> 5-x>=0
+					fallthrough = new Lincons1(Lincons1.SUPEQ,exp2);
+					//expression ex: x>5 -> x-5>0
+					branchout = new Lincons1(Lincons1.SUP,exp1);
 				} else if(right instanceof JimpleLocal){
 					sprint("gt expr with local local");
 					String varl = left.toString();
 					String varr = right.toString();
-					sprint("left variable is: " + varl);
-					sprint("right variable is: " + varr);
-					Linterm1 terml = new Linterm1(varl,new MpqScalar(1));
-					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml,termr},new MpqScalar(-1));
-					//expression ex: x>q -> x-q-1>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+
+					Linterm1 terml1 = new Linterm1(varl,new MpqScalar(1));
+					Linterm1 termr1 = new Linterm1(varr,new MpqScalar(-1));
+					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(-1));
+					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{terml1,termr1},new MpqScalar(0));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{terml2,termr2},new MpqScalar(0));
+
+					//expression ex: x>q -> q-x>=0
+					fallthrough = new Lincons1(Lincons1.SUPEQ,exp2);
+					//expression ex: x>q -> x-q>0
+					branchout = new Lincons1(Lincons1.SUP,exp1);
 				} else {
 					unhandled("gt expression with right of type: " + right.getType().toString());
 				}
 			} else {
 				unhandled("gt expression with left of type: " + left.getType().toString());
 			}
-		
-		//handles le expr
+
+			//handles lte expr
 		} else if(expr instanceof JLeExpr){
 			JLeExpr j = new JLeExpr(left,right);
-			
+
 			if(left instanceof IntConstant){
 				if(right instanceof IntConstant){
 					// should never reach this block
@@ -328,13 +341,18 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				} else if(right instanceof JimpleLocal){
 					sprint("lte expr with int local");
 					String var = right.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) left);
-					Linterm1 term = new Linterm1(var,new MpqScalar(1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*c.value));
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
+
+					//expression ex: 5<=x -> 5-x>0
+					fallthrough = new Lincons1(Lincons1.SUP,exp2);
 					//expression ex: 5<=x -> x-5>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					branchout = new Lincons1(Lincons1.SUPEQ,exp1);
+
 				} else {
 					unhandled("le expression with right of type: " + right.getType().toString());
 				}
@@ -342,36 +360,46 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				if(right instanceof IntConstant){
 					sprint("lte expr with local int");
 					String var = left.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) right);
-					Linterm1 term = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(c.value));
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(-1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(-1*c.value));
+
+					//expression ex: x<=5 -> x-5>0
+					fallthrough = new Lincons1(Lincons1.SUP,exp2);
 					//expression ex: x<=5 -> 5-x>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					branchout = new Lincons1(Lincons1.SUPEQ,exp1);
+
 				} else if(right instanceof JimpleLocal){
 					sprint("lte expr with local local");
 					String varl = left.toString();
 					String varr = right.toString();
-					sprint("left variable is: " + varl);
-					sprint("right variable is: " + varr);
-					Linterm1 terml = new Linterm1(varl,new MpqScalar(-1));
-					Linterm1 termr = new Linterm1(varr,new MpqScalar(1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml,termr},new MpqScalar(0));
-					//expression ex: x>=q -> x-q>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+
+					Linterm1 terml1 = new Linterm1(varl,new MpqScalar(-1));
+					Linterm1 termr1 = new Linterm1(varr,new MpqScalar(1));
+					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(1));
+					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(-1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{terml1,termr1},new MpqScalar(0));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{terml2,termr2},new MpqScalar(0));
+
+					//expression ex: x<=q -> x-q>0
+					fallthrough = new Lincons1(Lincons1.SUP,exp2);
+					//expression ex: x<=q -> q-x>=0
+					branchout = new Lincons1(Lincons1.SUPEQ,exp1);
+
 				} else {
 					unhandled("le expression with right of type: " + right.getType().toString());
 				}
 			} else {
 				unhandled("le expression with left of type: " + left.getType().toString());
 			}
-		
-		//handle lt expr
+
+			//handle lt expr
 		} else if(expr instanceof JLtExpr){
 			JLtExpr j = new JLtExpr(left,right);
-			
+
 			if(left instanceof IntConstant){
 				if(right instanceof IntConstant){
 					// should never reach this block
@@ -379,13 +407,18 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				} else if(right instanceof JimpleLocal){
 					sprint("lt expr with int local");
 					String var = right.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) left);
-					Linterm1 term = new Linterm1(var,new MpqScalar(1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*(c.value+1)));
-					//expression ex: 5<x -> x-6>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value));
+
+					//expression ex: 5<x -> 5-x>=0
+					fallthrough = new Lincons1(Lincons1.SUPEQ,exp2);
+					//expression ex: 5<x -> x-5>0
+					branchout = new Lincons1(Lincons1.SUP,exp1);
+
 				} else {
 					unhandled("lt expression with right of type: " + right.getType().toString());
 				}
@@ -393,34 +426,43 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				if(right instanceof IntConstant){
 					sprint("lt expr with local int");
 					String var = left.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) right);
-					Linterm1 term = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(c.value-1));
-					//expression ex: x<5 -> 4-x>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+					Linterm1 term1 = new Linterm1(var,new MpqScalar(-1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(c.value));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(-1*c.value));
+
+					//expression x<5 -> x-5>=0
+					fallthrough = new Lincons1(Lincons1.SUPEQ,exp2);
+					//expression ex: x<5 -> 5-x>0
+					branchout = new Lincons1(Lincons1.SUP,exp1);
+
 				} else if(right instanceof JimpleLocal){
 					sprint("gt expr with local local");
 					String varl = left.toString();
 					String varr = right.toString();
-					sprint("left variable is: " + varl);
-					sprint("right variable is: " + varr);
-					Linterm1 terml = new Linterm1(varl,new MpqScalar(-1));
-					Linterm1 termr = new Linterm1(varr,new MpqScalar(1));
-					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml,termr},new MpqScalar(-1));
-					//expression ex: x<q -> q-x-1>=0
-					Lincons1 linc = new Lincons1(1,exp);
-					sprint(linc.toString());
+
+					Linterm1 terml1 = new Linterm1(varl,new MpqScalar(-1));
+					Linterm1 termr1 = new Linterm1(varr,new MpqScalar(1));
+					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(1));
+					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(-1));
+					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{terml1,termr1},new MpqScalar(0));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{terml2,termr2},new MpqScalar(0));
+
+					//expression ex: x<q -> x-q>=0
+					fallthrough = new Lincons1(Lincons1.SUPEQ,exp2);
+					//expression ex: x<q -> q-x>0
+					branchout = new Lincons1(Lincons1.SUP,exp1);
+
 				} else {
 					unhandled("lt expression with right of type: " + right.getType().toString());
 				}
 			} else {
 				unhandled("lt expression with left of type: " + left.getType().toString());
 			}
-		
-		//handles ne expression
-		//TODO: EXPRESSIONS NEED TO BE UNIONED IN EACH CASE
+
+			//handles ne expression
 		} else if(expr instanceof JNeExpr){
 			JNeExpr j = new JNeExpr(left,right);
 			if(left instanceof IntConstant){
@@ -430,19 +472,16 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				} else if(right instanceof JimpleLocal){
 					sprint("ne expr with int local");
 					String var = right.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) left);
-					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
-					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*(c.value+1)));
-					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value-1));
-					//expression ex: for 5!=x -> x-6>=0
-					Lincons1 linc1 = new Lincons1(1,exp1);
-					//expression ex: for 5==x -> 4-x>=0
-					Lincons1 linc2 = new Lincons1(1,exp2);
-					sprint(linc1.toString());
-					sprint(linc2.toString());
-					
+					Linterm1 term = new Linterm1(var,new MpqScalar(1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*(c.value)));
+
+					//expression ex: for 5==x -> x-5=0
+					fallthrough = new Lincons1(Lincons1.EQ,exp);
+					//expression ex: for 5!=x -> x-5<>0
+					branchout = new Lincons1(Lincons1.DISEQ,exp);
+
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
 				}
@@ -450,50 +489,48 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				if(right instanceof IntConstant){
 					sprint("eq expr with local int");
 					String var = left.toString();
-					sprint("variable is: " + var);
+
 					IntConstant c = ((IntConstant) right);
-					Linterm1 term1 = new Linterm1(var,new MpqScalar(1));
-					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
-					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{term1},new MpqScalar(-1*(c.value+1)));
-					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(c.value-1));
-					//expression ex: for x!=5 -> x-6>=0
-					Lincons1 linc1 = new Lincons1(1,exp1);
-					//expression ex: for x!=5 -> 4-x >=0
-					Lincons1 linc2 = new Lincons1(1,exp2);
-					sprint(linc1.toString());
-					sprint(linc2.toString());
+					Linterm1 term = new Linterm1(var,new MpqScalar(1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*(c.value)));
+
+					//expression ex: for x!=5 -> x-5=0
+					fallthrough = new Lincons1(Lincons1.EQ,exp);
+					//expression ex: for x!=5 -> x-5<>0
+					branchout = new Lincons1(Lincons1.DISEQ,exp);
+
 				} else if(right instanceof JimpleLocal){
 					sprint("eq expr with local local");
 					String varl = left.toString();
 					String varr = right.toString();
-					sprint("left variable is: " + varl);
-					sprint("right variable is: " + varr);
-					
-					Linterm1 terml1 = new Linterm1(varl,new MpqScalar(1));
-					Linterm1 termr1 = new Linterm1(varr,new MpqScalar(-1));
-					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(-1));
-					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(1));
-					Linexpr1 exp1 = new Linexpr1(env,new Linterm1[]{terml1, termr1},new MpqScalar(-1));
-					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{terml2, termr2},new MpqScalar(1));
-					//expression ex: for x!=q -> x-q>=1
-					Lincons1 linc1 = new Lincons1(1,exp1);
-					//expression ex: for x!=q -> q-x>=-1
-					Lincons1 linc2 = new Lincons1(1,exp2);
-					sprint(linc1.toString());
-					sprint(linc2.toString());
+
+					Linterm1 terml = new Linterm1(varl,new MpqScalar(1));
+					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml, termr},new MpqScalar(0));
+
+					//expression ex: for x!=q -> q-x=0
+					fallthrough = new Lincons1(Lincons1.EQ,exp);
+					//expression ex: for x!=q -> x-q<>0
+					branchout = new Lincons1(Lincons1.DISEQ,exp);
+
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
 				}
 			} else {
 				unhandled("eq expression with left of type: " + left.getType().toString());
 			}
-		//not handled case
+			//not handled case
 		} else {
 			unhandled("expr of type 1 " + expr.getType());
 		}
+		sprint("fallthrough: " + fallthrough.toString());
+		sprint("branchout: " + branchout.toString());
+
+		ow.get().meet(man, fallthrough);
+		ow_branchout.get().meet(man, branchout);
+
 		ident--;
 	}
-
 	// handle assignments
 	private void handleDef(Abstract1 o, Value left, Value right)
 			throws ApronException {
@@ -557,20 +594,52 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				Value l = (Value) b.getOp1();
 				Value r = (Value) b.getOp2();
 				
+				if(l instanceof IntConstant){
+					IntConstant c = ((IntConstant) l);
+					lAr = new Texpr1CstNode(new MpqScalar(c.value));
+				} else if(l instanceof JimpleLocal){
+					String name = ((JimpleLocal) l).getName();
+					if (env.hasVar(name)){
+						lAr = new Texpr1VarNode(name);
+					}else{
+						sprint("env.hasVar("+name+") is false");
+					}
+				} else {
+					unhandled("left value of binary operator " + l.getType());
+				}
+				
+				if(r instanceof IntConstant){
+					IntConstant c = ((IntConstant) r);
+					rAr = new Texpr1CstNode(new MpqScalar(c.value));
+				} else if(r instanceof JimpleLocal){
+					String name = ((JimpleLocal) r).getName();
+					if (env.hasVar(name)){
+						rAr = new Texpr1VarNode(name);
+					}else{
+						sprint("env.hasVar("+name+") is false");
+					}
+				} else {
+					unhandled("right value of binary operator " + r.getType());
+				}
+				
+				int opp = 0;
+				
 				if(right instanceof JMulExpr){
-					JMulExpr j = new JMulExpr(l,r);
+					opp = Texpr1BinNode.OP_MUL;
 				} else if(right instanceof JSubExpr){
-					JSubExpr j = new JSubExpr(l,r);
-					
+					opp = Texpr1BinNode.OP_SUB;
 				} else if(right instanceof JAddExpr){
-					JAddExpr j = new JAddExpr(l,r);
-					
+					opp = Texpr1BinNode.OP_ADD;
 				} else if(right instanceof JDivExpr){
-					JDivExpr j = new JDivExpr(l,r);
-					
+					opp = Texpr1BinNode.OP_DIV;
 				} else {
 					unhandled("expr of type 2 " + right.getType());
 				}
+				
+				Texpr1BinNode bin = new Texpr1BinNode(opp,lAr,rAr);
+				xp = new Texpr1Intern(env,bin);
+				sprint("Assigning BinopExpr of value " + bin.toString());
+				o.assign(man, varName, xp, null);
 				
 			} else if (right instanceof ThisRef){
 				sprint("We are in a method in class " + right.getType());
