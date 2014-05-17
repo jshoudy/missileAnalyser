@@ -508,11 +508,11 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		if (left instanceof JimpleLocal) {
 			ident++;
 			String varName = ((JimpleLocal) left).getName();
-			sprint("varName = " + varName);
+			//sprint("varName = " + varName);
 			this.store.put(varName, right); // save it in the store
 			
 			if (right instanceof IntConstant) {
-				sprint("Entering IntConstant");
+				//sprint("Entering IntConstant");
 				/* Example of handling assignment to an integer constant */
 				IntConstant c = ((IntConstant) right);
 
@@ -586,16 +586,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		ident++;
 		printGraph();
 		Stmt s = (Stmt) op;
-		Abstract1 in = ((AWrapper) current).get();
-		Abstract1 o = null;
-		Abstract1 o_branchout = null;
-		AWrapper ow = null;
-		AWrapper ow_branchout = null;	
 		
-		sprint("flowThrough called with " + last(s.getClass().toString()));
-		//sprint("    in: " + in.toString());
-		//sprint("    op: " + op.toString());
-
 		try {
 			
 			Abstract1 in = current.get();
@@ -610,21 +601,36 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				// call handleDef
 				Value left = ((DefinitionStmt) s).getLeftOp();
 				Value right = ((DefinitionStmt) s).getRightOp();
-				handleDef(o,left,right);
-				
+				handleDef(out,left,right);
+				sprint(out.toString());
 			} else if (s instanceof JIfStmt) {
 				// call handleIf
 				AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
 				sprint("condition: " + cond.toString());
-				handleIf(cond,in,ow,ow_branchout);
+				handleIf(cond,in, out_wrapper, out_branchout_wrapper);
 				
 			} else if (s instanceof InvokeStmt){
 				// call handleInvoke
 				InvokeStmt stmt = (InvokeStmt)s;
-				handleMethodInvoke(o, stmt);
+				handleMethodInvoke(out, stmt);
 			} else  {
 				sprint("Unhandled operation: " + last(s.getClass().toString()));
 			}
+			
+			
+			AWrapper out_final_wrapper = new AWrapper(out);
+	        Iterator<AWrapper> it = fallOut.iterator();
+	        while (it.hasNext()) {
+	                copy(out_final_wrapper, it.next());
+	        }
+			
+			fallOut.add(out_final_wrapper);
+			branchOuts.add(out_branchout_wrapper);
+			sprint("fallOut = " + out_final_wrapper);
+			sprint("branchOuts = " + branchOuts);
+			
+			
+
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
 			sprint("reached catch block in flowThrough");
@@ -787,6 +793,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	}
 	
 	public void printGraph(){
-		g.getBody().toString();
+		//System.out.println(g.getBody().toString());
 	}
 }

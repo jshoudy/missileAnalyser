@@ -27,9 +27,10 @@ public class AWrapper {
 	public void setStatement(Object statement) {
 		this.statement = statement;
 	}
-
+	
 	public void copy(AWrapper src) {
 		this.elem = src.get();
+		this.man = src.man;
 		this.statement = src.statement;
 	}
 
