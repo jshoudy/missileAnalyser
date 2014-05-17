@@ -201,8 +201,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 					Linterm1 terml = new Linterm1(varl,new MpqScalar(1));
 					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
+					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(-1));
+					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(1));
 					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml, termr},new MpqScalar(0));
-					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{termr, terml},new MpqScalar(0));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{termr2, terml2},new MpqScalar(0));
 
 					//expression ex: for x==q -> x-q<>0
 					not_if1 = new Lincons1(Lincons1.SUP,exp);
@@ -490,12 +492,16 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 					IntConstant c = ((IntConstant) left);
 					Linterm1 term = new Linterm1(var,new MpqScalar(1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
+
 					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*(c.value)));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(1*(c.value)));
 
 					//expression ex: for 5==x -> x-5=0
 					not_if1 = new Lincons1(Lincons1.EQ,exp);
 					//expression ex: for 5!=x -> x-5<>0
-					into_if1 = new Lincons1(Lincons1.DISEQ,exp);
+					into_if1 = new Lincons1(Lincons1.SUP,exp);
+					into_if2 = new Lincons1(Lincons1.SUP,exp2);
 
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
@@ -507,12 +513,15 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 					IntConstant c = ((IntConstant) right);
 					Linterm1 term = new Linterm1(var,new MpqScalar(1));
+					Linterm1 term2 = new Linterm1(var,new MpqScalar(-1));
 					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*(c.value)));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{term2},new MpqScalar(1*(c.value)));
 
 					//expression ex: for x!=5 -> x-5=0
 					not_if1 = new Lincons1(Lincons1.EQ,exp);
 					//expression ex: for x!=5 -> x-5<>0
-					into_if1 = new Lincons1(Lincons1.DISEQ,exp);
+					into_if1 = new Lincons1(Lincons1.SUP,exp);
+					into_if2 = new Lincons1(Lincons1.SUP,exp2);
 
 				} else if(right instanceof JimpleLocal){
 					sprint("eq expr with local local");
@@ -521,12 +530,18 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 					Linterm1 terml = new Linterm1(varl,new MpqScalar(1));
 					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
+
+					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(-1));
+					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(1));
+					
 					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml, termr},new MpqScalar(0));
+					Linexpr1 exp2 = new Linexpr1(env,new Linterm1[]{terml2, termr2},new MpqScalar(0));
 
 					//expression ex: for x==q -> q-x=0
 					not_if1 = new Lincons1(Lincons1.EQ,exp);
 					//expression ex: for x!=q -> x-q<>0
-					into_if1 = new Lincons1(Lincons1.DISEQ,exp);
+					into_if1 = new Lincons1(Lincons1.SUP,exp);
+					into_if2 = new Lincons1(Lincons1.SUP,exp2);
 
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
