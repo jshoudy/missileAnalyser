@@ -7,6 +7,7 @@ import java.util.List;
 
 import apron.Abstract1;
 import apron.ApronException;
+import apron.Coeff;
 import apron.Environment;
 import apron.Interval;
 import apron.Lincons1;
@@ -15,6 +16,7 @@ import apron.Linterm1;
 import apron.Manager;
 import apron.MpqScalar;
 import apron.Polka;
+import apron.Scalar;
 import apron.Texpr1BinNode;
 import apron.Texpr1CstNode;
 import apron.Texpr1Intern;
@@ -117,7 +119,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		this.g = g;
 		this.jclass = jc;
 		this.constructorCalls = new HashMap<String, List<Value>>();
-		this.store = new HashMap<String, Value>();
 		
 		buildEnvironment();
 		instantiateDomain();
@@ -168,6 +169,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					fallthrough = new Lincons1(Lincons1.DISEQ,exp);
 					//expression ex: for 5==x -> x-5=0
 					branchout = new Lincons1(Lincons1.EQ,exp);
+					printGraph();
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
 				}
@@ -181,9 +183,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term},new MpqScalar(-1*c.value));
 
 					//expression ex: for x==5 -> x-5<>0
-					fallthrough = new Lincons1(Lincons1.DISEQ,exp);
+					fallthrough = new Lincons1(Lincons1.EQ,exp);
 					//expression ex: for x==5 -> x-5=0
-					branchout = new Lincons1(Lincons1.EQ,exp);
+					branchout = new Lincons1(Lincons1.DISEQ,exp);
 				} else if(right instanceof JimpleLocal){
 					sprint("eq expr with local local");
 					String varl = left.toString();
@@ -194,9 +196,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml, termr},new MpqScalar(0));
 
 					//expression ex: for x==q -> x-q<>0
-					fallthrough = new Lincons1(Lincons1.DISEQ,exp);
+					fallthrough = new Lincons1(Lincons1.EQ,exp);
 					//expression ex: for x==q -> x-q=0
-					branchout = new Lincons1(Lincons1.EQ,exp);
+					branchout = new Lincons1(Lincons1.DISEQ,exp);
 				} else {
 					unhandled("eq expression with right of type: " + right.getType().toString());
 				}
@@ -454,6 +456,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					fallthrough = new Lincons1(Lincons1.SUPEQ,exp2);
 					//expression ex: x<q -> q-x>0
 					branchout = new Lincons1(Lincons1.SUP,exp1);
+					
 
 				} else {
 					unhandled("lt expression with right of type: " + right.getType().toString());
@@ -508,7 +511,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
 					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{terml, termr},new MpqScalar(0));
 
-					//expression ex: for x!=q -> q-x=0
+					//expression ex: for x==q -> q-x=0
 					fallthrough = new Lincons1(Lincons1.EQ,exp);
 					//expression ex: for x!=q -> x-q<>0
 					branchout = new Lincons1(Lincons1.DISEQ,exp);
@@ -548,7 +551,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			ident++;
 			String varName = ((JimpleLocal) left).getName();
 			//sprint("varName = " + varName);
-			this.store.put(varName, right); // save it in the store
 			
 			if (right instanceof IntConstant) {
 				//sprint("Entering IntConstant");
@@ -655,7 +657,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	protected void flowThrough(AWrapper current, Unit op,
 			List<AWrapper> fallOut, List<AWrapper> branchOuts) {
 		ident++;
-		printGraph();
 		Stmt s = (Stmt) op;
 		
 		try {
@@ -687,7 +688,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				sprint("Unhandled operation: " + last(s.getClass().toString()));
 			}
 			
-			
 			// add output to fallOut 
 			{
 				AWrapper out_final_wrapper = new AWrapper(out);
@@ -695,7 +695,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		        while (it.hasNext()) {
 		                copy(out_final_wrapper, it.next());
 		        }
-				fallOut.add(out_final_wrapper);
+				//fallOut.add(out_final_wrapper);
 			}
 			// add branched output to branchOuts 
 			{
@@ -704,7 +704,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		        while (it.hasNext()) {
 		                copy(out_final_branchout_wrapper, it.next());
 		        }
-				branchOuts.add(out_final_branchout_wrapper);
+				//branchOuts.add(out_final_branchout_wrapper);
 			}
 			sprint("fallOut = " + fallOut);
 			sprint("branchOuts = " + branchOuts);
@@ -755,16 +755,19 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	
 	private void handleMissileBatteryFire(JimpleLocal base, InstanceInvokeExpr expr, Abstract1 o) throws ApronException{
 		sprint("Entering MissileBattery.fire(int)");
+		if(o.isBottom(man)){
+			sprint("Is bottom! This will never be called.. soo, return!");
+			return;
+		}
+
+		int sizeOfBattery = ((IntConstant)this.constructorCalls.get(base.getName()).get(0)).value;
+		Interval sizeOfBatteryInterval = new Interval(0, sizeOfBattery - 1);
 		
-		int missileIdx = ((IntConstant)getUnderlyingValue(expr.getArg(0))).value;
-		int batterySize = ((IntConstant)getUnderlyingValue(this.constructorCalls.get(base.getName()).get(0))).value;
-		
-		// So after calling getUnderlyingValue we know that both of these are IntConstants
-		
-		if(missileIdx < 0){
-			sprint("** UNSAFE!! missileIdx (" + missileIdx + ") is less than zero");
-		}else if(missileIdx >= batterySize){
-			sprint("** UNSAFE!! missileIdx (" + missileIdx + ") is larger than batterySize (" + batterySize + ")");
+		Interval missileIdxInterval = getInterval(expr.getArg(0), o);
+		sprint("missileIdxInterval = " + missileIdxInterval);
+		sprint("Checking that " + missileIdxInterval + " is a subset of " + sizeOfBatteryInterval);
+		if(missileIdxInterval.cmp(sizeOfBatteryInterval) > 0){
+			sprint("** UNSAFE!! "+missileIdxInterval+" (missile index) is not subset of " + sizeOfBatteryInterval + " (size)");
 			isSafe = false;
 		}else{
 			sprint("OK:)");
@@ -843,20 +846,27 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	public static String reals[] = { "foo" };
 	public SootClass jclass;
 	private int ident = 0;
-	private HashMap<String, Value> store;
 	private HashMap<String, List<Value>> constructorCalls;
 	
 	public boolean isSafe = true;
 	
-	private Value getUnderlyingValue(Value value){
-		if(false == value instanceof JimpleLocal){
-			return value;
+	private Interval getInterval(Value v, Abstract1 o) throws ApronException{
+		if(v instanceof Interval){
+			return (Interval)v;
 		}
-		Value storedVal = this.store.get(((JimpleLocal)value).getName());
-		if(storedVal == null)
-			unhandled("(getUnderlyingValue) store has no key " + ((JimpleLocal)value).getName());
 		
-		return getUnderlyingValue(storedVal);
+		if(v instanceof IntConstant){
+			IntConstant i = (IntConstant)v;
+			return new Interval(i.value, i.value);
+		}
+		
+		if(v instanceof JimpleLocal){
+			JimpleLocal local = (JimpleLocal)v;
+			return o.getBound(man, local.getName());
+		}
+		
+		unhandled("(getInterval) when v is type of " + v.getClass());
+		return null;
 	}
 	
 	public String last(String s){
@@ -871,6 +881,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	}
 	
 	public void printGraph(){
-		//System.out.println(g.getBody().toString());
+		System.out.println(g.getBody().toString());
 	}
 }
