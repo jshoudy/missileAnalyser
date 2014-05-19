@@ -1,5 +1,7 @@
 package ch.ethz.sae;
 
+import gmp.Mpq;
+
 import java.security.interfaces.DSAKey;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -827,8 +829,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		List<Interval> prev = new ArrayList<Interval>();
 		if(previousFires.containsKey(base.getName())){
 			prev = previousFires.get(base.getName());
+			int[] mBound = getEndpoints(missileIdxInterval);
 			for(Interval p: prev){
-				if(missileIdxInterval.isLeq(p) || p.isLeq(missileIdxInterval)){
+				int[] pBound = getEndpoints(p);
+				if(!(pBound[1]<mBound[0] || pBound[0] > mBound[1])){
 					sprint("** UNSAFE!! "+missileIdxInterval+" (missile index) overlaps with already fired interval " + p);
 					isSafe = false;
 				}
@@ -933,6 +937,16 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		
 		unhandled("(getInterval) when v is type of " + v.getClass());
 		return null;
+	}
+	
+	private int[] getEndpoints(Interval i){
+		String s = i.toString();
+		String lower = s.substring(1, s.lastIndexOf(","));
+		String upper = s.substring(s.lastIndexOf(",")+1,s.lastIndexOf("]"));
+		int l = Integer.parseInt(lower);
+		int u = Integer.parseInt(upper);
+		int[] bound = new int[]{l,u};
+		return bound;
 	}
 	
 	public String last(String s){
