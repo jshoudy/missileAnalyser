@@ -1,6 +1,7 @@
 package ch.ethz.sae;
 
 import java.security.interfaces.DSAKey;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -119,7 +120,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		this.g = g;
 		this.jclass = jc;
 		this.constructorCalls = new HashMap<String, List<Value>>();
-		
+		this.previousFires = new HashMap<String, List<Interval>>();
 		buildEnvironment();
 		instantiateDomain();
 		sprint("successfully constructed " + jc);
@@ -821,6 +822,21 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		}else{
 			sprint("OK:)");
 		}
+		
+		sprint("Checking that " + missileIdxInterval + " has not been already fired");
+		List<Interval> prev = new ArrayList<Interval>();
+		if(previousFires.containsKey(base.getName())){
+			prev = previousFires.get(base.getName());
+			for(Interval p: prev){
+				if(missileIdxInterval.isLeq(p) || p.isLeq(missileIdxInterval)){
+					sprint("** UNSAFE!! "+missileIdxInterval+" (missile index) overlaps with already fired interval " + p);
+					isSafe = false;
+				}
+			}
+		} 
+		prev.add(missileIdxInterval);
+		previousFires.put(base.getName(), prev);
+		
 	}
 
 	// Initialize starting label (top)
@@ -896,6 +912,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	public SootClass jclass;
 	private int ident = 0;
 	private HashMap<String, List<Value>> constructorCalls;
+	private HashMap<String, List<Interval>> previousFires;
 	
 	public boolean isSafe = true;
 	
