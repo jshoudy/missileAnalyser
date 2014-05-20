@@ -4,10 +4,14 @@ import gmp.Mpq;
 
 import java.security.interfaces.DSAKey;
 import java.util.ArrayList;
+import java.util.Dictionary;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
+import apron.Abstract0;
 import apron.Abstract1;
 import apron.ApronException;
 import apron.Coeff;
@@ -36,6 +40,9 @@ import soot.Type;
 import soot.Unit;
 import soot.Value;
 import soot.ValueBox;
+import soot.JastAddJ.IfStmt;
+import soot.dava.internal.AST.ASTTryNode.container;
+import soot.jimple.AddExpr;
 import soot.jimple.BinopExpr;
 import soot.jimple.DefinitionStmt;
 import soot.jimple.Expr;
@@ -45,14 +52,17 @@ import soot.jimple.IntConstant;
 import soot.jimple.InvokeExpr;
 import soot.jimple.InvokeStmt;
 import soot.jimple.NewExpr;
+import soot.jimple.NumericConstant;
 import soot.jimple.SpecialInvokeExpr;
 import soot.jimple.Stmt;
 import soot.jimple.ThisRef;
 import soot.jimple.internal.AbstractBinopExpr;
 import soot.jimple.internal.JAddExpr;
+import soot.jimple.internal.JAssignStmt;
 import soot.jimple.internal.JDivExpr;
 import soot.jimple.internal.JEqExpr;
 import soot.jimple.internal.JGeExpr;
+import soot.jimple.internal.JGotoStmt;
 import soot.jimple.internal.JGtExpr;
 import soot.jimple.internal.JIdentityStmt;
 import soot.jimple.internal.JIfStmt;
@@ -62,9 +72,14 @@ import soot.jimple.internal.JMulExpr;
 import soot.jimple.internal.JNeExpr;
 import soot.jimple.internal.JSubExpr;
 import soot.jimple.internal.JimpleLocal;
+import soot.jimple.toolkits.annotation.logic.Loop;
+import soot.jimple.toolkits.annotation.logic.LoopFinder;
+import soot.tagkit.IntegerConstantValueTag;
+import soot.toolkits.graph.LoopNestTree;
 import soot.toolkits.graph.UnitGraph;
 import soot.toolkits.scalar.ForwardBranchedFlowAnalysis;
 import soot.util.Chain;
+import soot.util.Switch;
 
 // Implement your numerical analysis here.
 public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
@@ -125,6 +140,16 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		this.previousFires = new HashMap<String, List<Interval>>();
 		buildEnvironment();
 		instantiateDomain();
+		
+
+		LoopNestTree loops = new LoopNestTree(g.getBody());
+		for (Loop l : loops) {
+			Stmt h = l.getHead();
+			backJumps.put(h,new Tuple<Integer, List<Stmt>>(new Integer(0), l.getLoopStatements()));
+			
+		}
+		
+		
 		sprint("successfully constructed " + jc);
 
 	}
@@ -711,6 +736,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Stmt s = (Stmt) op;
 		
 		try {
+			sprint("flowThrough called with " + last(s.getClass().toString()) + ", in: " + current);
+
+			if(s instanceof JGotoStmt){
+				s = (Stmt) ((JGotoStmt) s).getTarget();
+				sprint("GOTO: flowThrough called with " + last(s.getClass().toString()) + ", in: " + current);
+			}
 			
 			Abstract1 in = current.get();
 			Abstract1 out = new Abstract1(man, in);
@@ -718,20 +749,37 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			AWrapper out_wrapper = new AWrapper(out);
 			AWrapper out_branchout_wrapper = new AWrapper(out_branchout);	
 			
-			sprint("flowThrough called with " + last(s.getClass().toString()) + ", in: " + current);
 
+			
+			
 			if (s instanceof DefinitionStmt) {
 				// call handleDef
 				Value left = ((DefinitionStmt) s).getLeftOp();
 				Value right = ((DefinitionStmt) s).getRightOp();
 				handleDef(out,left,right);
 			} else if (s instanceof JIfStmt) {
-				// call handleIf
-				AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
-				sprint("condition: " + cond.toString());
-				handleIf(cond,in, out_wrapper, out_branchout_wrapper);
-				out = out_wrapper.get();
-				out_branchout = out_branchout_wrapper.get();
+				// check if this is a backjumpstmt(i.e. a loop), and if so, check it if has iterated at least 6 times.
+				Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get((JIfStmt)s);
+				if(loopDescriptor != null){
+					Integer iteration_count = loopDescriptor.item1;
+					if(iteration_count != null && iteration_count >= 6){// this is a loop with more than 6 iters
+						branchOuts.clear();
+						//fallOut.add(newInitialFlow()); // add bottom
+						out = in;
+						sprint("Iterated more than 6 times => widening has occured. Moving away from loop...");
+					}
+				}else{
+					// call handleIf
+					AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
+					sprint("condition: " + cond.toString());
+					handleIf(cond,in, out_wrapper, out_branchout_wrapper);
+					out = out_wrapper.get();
+					out_branchout = out_branchout_wrapper.get();
+				}
+			} else if (s instanceof JGotoStmt){
+				JGotoStmt gotoStmt = (JGotoStmt)s;
+				
+				flowThrough(current, gotoStmt.getTarget(), fallOut, branchOuts);
 			} else if (s instanceof InvokeStmt){
 				// call handleInvoke
 				InvokeStmt stmt = (InvokeStmt)s;
@@ -740,6 +788,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				sprint("Unhandled operation: " + last(s.getClass().toString()));
 			}
 
+			
 			// add output to fallOut 
 			{
 				AWrapper out_final_wrapper = new AWrapper(out);
@@ -789,7 +838,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			constructorCalls.put(base.getName(), initExpr.getArgs());
 			return;
 		}
-		
 		// Normal method call
 		SootMethodRef method = expr.getMethodRef();
 		String className = method.declaringClass().getName();
@@ -818,7 +866,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Interval missileIdxInterval = getInterval(expr.getArg(0), o);
 		sprint("missileIdxInterval = " + missileIdxInterval);
 		sprint("Checking that " + missileIdxInterval + " is a subset of " + sizeOfBatteryInterval);
-		if(missileIdxInterval.cmp(sizeOfBatteryInterval) > 0){
+		if(sizeOfBatteryInterval.cmp(missileIdxInterval) != 1){
 			sprint("** UNSAFE!! "+missileIdxInterval+" (missile index) is not subset of " + sizeOfBatteryInterval + " (size)");
 			isSafe = false;
 		}else{
@@ -861,25 +909,143 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		return new AWrapper(top);
 	}
 
+
 	// Implement Join
 	@Override
 	protected void merge(AWrapper src1, AWrapper src2, AWrapper trg) {
 		ident++;
-		sprint("merge called with src1: " + src1.toString());
-		sprint("                  src2: " + src2.toString());
-		sprint("                  trg: " + trg.toString());
 		try {
-			trg.set(src1.get().joinCopy(man, src2.get()));
+			//trg = new AWrapper(Abstract1.join(man, new Abstract1[]  {src1.get(), src2.get()}));
+			trg.set(src2.get().joinCopy(man, src1.get()));
 		} catch (ApronException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
+		}		
+		sprint("merge: " + src1+ " + " + src2 + " = " + trg);
 		ident--;
+	}
+	
+	
+
+	/* It may be useful for widening */
+	
+	
+	private Map<Stmt, Tuple<Integer, List<Stmt>>> backJumps = new HashMap<Stmt, Tuple<Integer, List<Stmt>>>();
+	
+	// Implement Join
+	// src1 before iteration
+	// src2 after executing loop block 
+	@Override
+	protected void merge(Unit u, AWrapper src1, AWrapper src2, AWrapper trg) {
+
+		ident++;
+		sprint("merge from unit " + u);
+		if(false == u instanceof JIfStmt){
+			printGraph();
+			merge(src1,src2,trg);
+			return;
+		}
+		
+		JIfStmt u2 = (JIfStmt)u;
+		Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get(u);
+		try{
+		if(loopDescriptor != null){ // this is a loop
+			
+			loopDescriptor.item1++;
+			if(loopDescriptor.item1.intValue() >= 6){
+				sprint("Iterated more than 5 times: " + loopDescriptor.item1);
+				Lincons1[] constraints = new Lincons1[loopDescriptor.item2.size()-1];
+				for(int i = 1; i < loopDescriptor.item2.size(); i++){
+					Stmt target = loopDescriptor.item2.get(i);
+					if(target instanceof DefinitionStmt){
+						ident++;
+						sprint("Widening " + target);
+						Lincons1 result = widen((DefinitionStmt) target, src1, src2, trg);
+						constraints[i-1] = (result);
+						ident--;
+					}
+				}
+				trg.set( src2.get().wideningThreshold(man, src1.get(), constraints) );
+				
+				sprint("Done with widening, result: " + trg);
+			}else{
+				merge(src1,src2,trg);
+			}
+			backJumps.put((Stmt)u, loopDescriptor);
+		}
+		
+		}catch(ApronException ex){
+			unhandled(ex.toString());
+		}
+		
+		ident--;
+		
+	}
+	
+	private Lincons1 widen(DefinitionStmt defStmt, AWrapper src1, AWrapper src2, AWrapper trg) throws ApronException{
+		if(defStmt.getRightOp() instanceof BinopExpr){
+			BinopExpr binop = (BinopExpr)defStmt.getRightOp();
+			
+			JimpleLocal left = (JimpleLocal)binop.getOp1();
+			Interval leftBound = src1.elem.getBound(man, left.getName());
+			
+			Interval widenedInterval = null;
+			if(binop instanceof JAddExpr){
+				AddExpr expr = (AddExpr)binop;
+				IntConstant addTerm = (IntConstant) expr.getOp2();
+				MpqScalar infty =  new MpqScalar();
+				infty.setInfty(1);
+				Interval currentBound = src1.elem.getBound(man, left.getName());
+				
+				if(addTerm.value < 0){
+					Mpq q = new Mpq();
+					int round = 2;
+					currentBound.sup.toMpq(q, round); // upper bound of the assignment target
+					Linterm1 term = new Linterm1(left.getName(),new MpqScalar(-1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term}, new MpqScalar(q));
+					//expression ex: oo -x > 0
+					//c = new Lincons1(Lincons1.SUP, exp);
+					Lincons1 c = new Lincons1(Lincons1.SUPEQ, exp);
+					Lincons1[] arr = new Lincons1[1];
+					arr[0] = c;
+					Abstract1 widened = src2.elem.wideningThreshold(man, src1.elem, arr);
+					Interval b = widened.getBound(man, left.getName());
+					sprint("Widened Interval for target: " + b + " (was " + currentBound + ")");
+
+					return c;					
+				}else if(addTerm.value > 0){
+					Mpq q = new Mpq();
+					int round = 2;
+					currentBound.inf.toMpq(q, round); // upper bound of the assignment target
+					q.neg();
+					Linterm1 term = new Linterm1(left.getName(),new MpqScalar(1));
+					Linexpr1 exp = new Linexpr1(env,new Linterm1[]{term}, new MpqScalar(q));
+					
+					//expression ex: x = 10, x-10 >= 0 ---> x = [10, +oo]
+					
+					Lincons1 c = new Lincons1(Lincons1.SUPEQ, exp);
+					Lincons1[] arr = new Lincons1[1];
+					arr[0] = c;
+					Abstract1 widened = src2.elem.wideningThreshold(man, src1.elem, arr);
+					Interval b = widened.getBound(man, left.getName());
+					sprint("Widened Interval for target: " + b + " (was " + currentBound + ")");
+
+					return c;
+				}else{
+					// i guess if this is when you add 0
+					sprint("Sign is null???");
+				}
+			}else{
+				unhandled("(merge) binary operator other than JAddExpr (was " + binop.getOp2().getClass() + ")");
+			}
+		}
+		return null;
 	}
 
 	// Initialize all labels (bottom)
 	@Override
 	protected AWrapper newInitialFlow() {
+		
 		ident++;
 		//sprint("called newInitialFlow");
 		Abstract1 bot = null;
@@ -902,11 +1068,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		//sprint("finished copy");
 	}
 
-	/* It may be useful for widening */
-	/*
-	 * private HashSet<Stmt> backJumps = new HashSet<Stmt>(); private
-	 * HashSet<Integer> backJumpIntervals = new HashSet<Integer>();
-	 */
 
 	public static Manager man;
 	private Environment env;
