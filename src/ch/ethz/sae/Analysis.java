@@ -941,7 +941,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		ident++;
 		sprint("merge from unit " + u);
 		if(false == u instanceof JIfStmt){
-			printGraph();
+			//printGraph();
 			merge(src1,src2,trg);
 			return;
 		}
@@ -1116,12 +1116,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	
 	public void sprint(String what){
 		for (int i = 0; i < this.ident; i++){
-			System.out.print("  ");
+			//System.out.print("  ");
 		}
-		System.out.println(what);
+		//System.out.println(what);
 	}
 	
 	public void printGraph(){
-		System.out.println(g.getBody().toString());
+		//System.out.println(g.getBody().toString());
 	}
 }
