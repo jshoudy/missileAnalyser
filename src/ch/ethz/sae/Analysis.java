@@ -138,6 +138,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		this.jclass = jc;
 		this.constructorCalls = new HashMap<String, List<Value>>();
 		this.previousFires = new HashMap<String, List<Interval>>();
+		this.missileBatteryAssignments = new HashMap<String, String>();
 		buildEnvironment();
 		instantiateDomain();
 		
@@ -645,10 +646,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				
 				sprint("Entering JimpleLocal");
 				String name = ((JimpleLocal) right).getName();
-				List<Value> constructorCall = constructorCalls.get(name);
-				if(constructorCall != null){
-					constructorCalls.put(varName, constructorCall);
-				}
 				
 				/* Example of handling assignment to a local variable */
 				if (env.hasVar(name)){
@@ -659,6 +656,13 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					o.assign(man, varName, xp, null);
 				}else{
 					sprint("env.hasVar("+name+") is false");
+					String finalName = getConcreteInstanceVariableName(name);
+					
+					if(constructorCalls.containsKey(finalName)){
+						sprint("constructorCalls contains '"+finalName+"'.");
+						missileBatteryAssignments.put(varName, finalName);
+						sprint("adding {"+varName+","+finalName+"} to missileBatteryAssignments");
+					}
 				}
 				
 				
@@ -680,7 +684,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					if (env.hasVar(name)){
 						lAr = new Texpr1VarNode(name);
 					}else{
-						sprint("env.hasVar("+name+") is false");
+						sprint("will not assign " + varName + " JimpleLocal; env.hasVar("+name+") is false");
 					}
 				} else {
 					unhandled("left value of binary operator " + l.getType());
@@ -693,6 +697,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					String name = ((JimpleLocal) r).getName();
 					if (env.hasVar(name)){
 						rAr = new Texpr1VarNode(name);
+						sprint("assigning " + varName + " a JimpleLocal="+name);
 					}else{
 						sprint("env.hasVar("+name+") is false");
 					}
@@ -858,7 +863,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			return;
 		}
 
-		int sizeOfBattery = ((IntConstant)this.constructorCalls.get(base.getName()).get(0)).value;
+		String missileBattery = getConcreteInstanceVariableName(base.getName());
+		int sizeOfBattery = ((IntConstant)this.constructorCalls.get(missileBattery).get(0)).value;
 		Interval sizeOfBatteryInterval = new Interval(0, sizeOfBattery - 1);
 		
 		Interval missileIdxInterval = getInterval(expr.getArg(0), o);
@@ -873,19 +879,20 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		
 		sprint("Checking that " + missileIdxInterval + " has not been already fired");
 		List<Interval> prev = new ArrayList<Interval>();
-		if(previousFires.containsKey(base.getName())){
-			prev = previousFires.get(base.getName());
+		if(previousFires.containsKey(missileBattery)){
+			prev = previousFires.get(missileBattery);
 			int[] mBound = getEndpoints(missileIdxInterval);
 			for(Interval p: prev){
 				int[] pBound = getEndpoints(p);
 				if(!(pBound[1]<mBound[0] || pBound[0] > mBound[1])){
 					sprint("** UNSAFE!! "+missileIdxInterval+" (missile index) overlaps with already fired interval " + p);
 					isSafe = false;
+					break;
 				}
 			}
 		} 
 		prev.add(missileIdxInterval);
-		previousFires.put(base.getName(), prev);
+		previousFires.put(missileBattery, prev);
 		
 	}
 
@@ -1083,9 +1090,19 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	public SootClass jclass;
 	private int ident = 0;
 	private HashMap<String, List<Value>> constructorCalls;
+	private HashMap<String, String> missileBatteryAssignments;
 	private HashMap<String, List<Interval>> previousFires;
 	
 	public boolean isSafe = true;
+	
+	private String getConcreteInstanceVariableName(String variableName){
+		String finalName = variableName;
+		while(missileBatteryAssignments.containsKey(finalName)){
+			finalName = missileBatteryAssignments.get(finalName);
+		}
+		
+		return finalName;
+	}
 	
 	private Interval getInterval(Value v, Abstract1 o) throws ApronException{
 		if(v instanceof Interval){

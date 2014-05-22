@@ -1,13 +1,9 @@
 public class ExampleTest {
   public static void l(){
-	  MissileBattery r = new MissileBattery(15);
-	  int i = 1;
-	  
-	  while(i < 10){
-		  i++;
-	  }
-	  
-	  r.fire(i);
+	  MissileBattery r = new MissileBattery(6);
+	  MissileBattery s = r;
+	  r.fire(0);
+	  s.fire(0);
   }
 }
   
