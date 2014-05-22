@@ -760,14 +760,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			} else if (s instanceof JIfStmt) {
 				// check if this is a backjumpstmt(i.e. a loop), and if so, check it if has iterated at least 6 times.
 				Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get((JIfStmt)s);
-				if(loopDescriptor != null){
-					Integer iteration_count = loopDescriptor.item1;
-					if(iteration_count != null && iteration_count >= 6){// this is a loop with more than 6 iters
-						branchOuts.clear();
-						//fallOut.add(newInitialFlow()); // add bottom
-						out = in;
-						sprint("Iterated more than 6 times => widening has occured. Moving away from loop...");
-					}
+				if(loopDescriptor != null && loopDescriptor.item1 >= 6){
+					branchOuts.clear();
+					//fallOut.add(newInitialFlow()); // add bottom
+					out = in;
+					sprint("Iterated more than 6 times => widening has occured. Moving away from loop...");
+				
 				}else{
 					// call handleIf
 					AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
@@ -945,7 +943,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			merge(src1,src2,trg);
 			return;
 		}
-		
+		printGraph();
 		JIfStmt u2 = (JIfStmt)u;
 		Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get(u);
 		try{
@@ -954,7 +952,14 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			loopDescriptor.item1++;
 			if(loopDescriptor.item1.intValue() >= 6){
 				sprint("Iterated more than 5 times: " + loopDescriptor.item1);
-				Lincons1[] constraints = new Lincons1[loopDescriptor.item2.size()-1];
+				
+				int countDefStatements = 0;
+				for(Stmt s : loopDescriptor.item2){
+					if(s instanceof DefinitionStmt)
+						countDefStatements++;
+				}
+				
+				Lincons1[] constraints = new Lincons1[countDefStatements];
 				for(int i = 1; i < loopDescriptor.item2.size(); i++){
 					Stmt target = loopDescriptor.item2.get(i);
 					if(target instanceof DefinitionStmt){
@@ -965,6 +970,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 						ident--;
 					}
 				}
+				
 				trg.set( src2.get().wideningThreshold(man, src1.get(), constraints) );
 				
 				sprint("Done with widening, result: " + trg);
@@ -1116,9 +1122,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	
 	public void sprint(String what){
 		for (int i = 0; i < this.ident; i++){
-			//System.out.print("  ");
+			System.out.print("  ");
 		}
-		//System.out.println(what);
+		System.out.println(what);
 	}
 	
 	public void printGraph(){
