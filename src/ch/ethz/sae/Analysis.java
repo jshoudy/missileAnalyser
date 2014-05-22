@@ -586,13 +586,14 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		}
 		
 		sprint("false: " + ow + " meet " + not_if1 +" join "+ not_if2);
-		sprint("true: " + ow_branchout  + " meet "+ into_if1 +" join "+ into_if2);
+		sprint("true:" + ow_branchout  + " meet "+ into_if1 +" join "+ into_if2);
 		
 		join(ow, not_if1, not_if2);
 		join(ow_branchout, into_if1, into_if2);
-		AWrapper kek = ow;
-		ow = ow_branchout;
-		ow_branchout = ow;
+
+		//AWrapper temp = ow;
+		//ow = ow_branchout;
+		//ow_branchout = temp;
 		
 		sprint("result false: " + ow);
 		sprint("result true: "+ ow_branchout);
@@ -647,7 +648,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				
 				
 			} else if (right instanceof JimpleLocal) {
-				
 				
 				sprint("Entering JimpleLocal");
 				String name = ((JimpleLocal) right).getName();
@@ -744,13 +744,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			List<AWrapper> fallOut, List<AWrapper> branchOuts) {
 		ident++;
 		Stmt s = (Stmt) op;
-		
 		try {
-			sprint("flowThrough called with " + last(s.getClass().toString()) + ", in: " + current);
-			
+			sprint("flowThrough called with " + s + ", in: " + current);
+
 			Abstract1 in = current.get();
 			Abstract1 out = new Abstract1(man, in);
-			Abstract1 out_branchout = new Abstract1(man, in);
+			Abstract1 out_branchout = new Abstract1(man, env, true);
 			AWrapper out_wrapper = new AWrapper(out);
 			AWrapper out_branchout_wrapper = new AWrapper(out_branchout);	
 			
@@ -776,6 +775,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					handleIf(cond,in, out_wrapper, out_branchout_wrapper);
 					out = out_wrapper.get();
 					out_branchout = out_branchout_wrapper.get();
+					printGraph();
 				}
 			} else if (s instanceof JGotoStmt){
 				JGotoStmt gotoStmt = (JGotoStmt)s;
@@ -783,17 +783,13 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			} else if (s instanceof InvokeStmt){
 				// call handleInvoke
 				InvokeStmt stmt = (InvokeStmt)s;
-				handleMethodInvoke(out, stmt);
+				handleMethodInvoke(in, stmt);
 			} else if (s instanceof JReturnVoidStmt){
-				out = new Abstract1(man, env, true);
-				out_branchout = new Abstract1(man, env, true);
-				fallOut.add(new AWrapper(out));
-				branchOuts.add(new AWrapper(out));
+				// idk
 			} else  {
 				sprint("Unhandled operation: " + last(s.getClass().toString()));
 			}
 
-			
 			// add output to fallOut 
 			{
 				AWrapper out_final_wrapper = new AWrapper(out);
@@ -875,6 +871,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		if(sizeOfBatteryInterval.cmp(missileIdxInterval) != 1){
 			sprint("** UNSAFE!! "+missileIdxInterval+" (missile index) is not subset of " + sizeOfBatteryInterval + " (size)");
 			isSafe = false;
+			return;
 		}else{
 			sprint("OK:)");
 		}
@@ -1147,6 +1144,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	}
 	
 	public void printGraph(){
-		System.out.println(g.getBody().toString());
+		//System.out.println(g.getBody().toString());
 	}
 }

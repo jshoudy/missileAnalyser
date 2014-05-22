@@ -35,7 +35,7 @@ public class Verifier {
 				programCorrectFlag = 0;
 			}
 		}
-		
+
 		if (programCorrectFlag == 1) {
 			System.out.println("Program " + analyzedClass + " is SAFE");
 		} else {
