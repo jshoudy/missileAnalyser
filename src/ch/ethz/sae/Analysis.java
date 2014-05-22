@@ -70,6 +70,8 @@ import soot.jimple.internal.JLeExpr;
 import soot.jimple.internal.JLtExpr;
 import soot.jimple.internal.JMulExpr;
 import soot.jimple.internal.JNeExpr;
+import soot.jimple.internal.JReturnStmt;
+import soot.jimple.internal.JReturnVoidStmt;
 import soot.jimple.internal.JSubExpr;
 import soot.jimple.internal.JimpleLocal;
 import soot.jimple.toolkits.annotation.logic.Loop;
@@ -583,11 +585,14 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			unhandled("expr of type 1 " + expr.getType());
 		}
 		
-		sprint("false: " + not_if1 +" join "+ not_if2);
-		sprint("true: " + into_if1 +" join "+ into_if2);
+		sprint("false: " + ow + " meet " + not_if1 +" join "+ not_if2);
+		sprint("true: " + ow_branchout  + " meet "+ into_if1 +" join "+ into_if2);
 		
 		join(ow, not_if1, not_if2);
 		join(ow_branchout, into_if1, into_if2);
+		AWrapper kek = ow;
+		ow = ow_branchout;
+		ow_branchout = ow;
 		
 		sprint("result false: " + ow);
 		sprint("result true: "+ ow_branchout);
@@ -742,20 +747,12 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		
 		try {
 			sprint("flowThrough called with " + last(s.getClass().toString()) + ", in: " + current);
-
-			if(s instanceof JGotoStmt){
-				s = (Stmt) ((JGotoStmt) s).getTarget();
-				sprint("GOTO: flowThrough called with " + last(s.getClass().toString()) + ", in: " + current);
-			}
 			
 			Abstract1 in = current.get();
 			Abstract1 out = new Abstract1(man, in);
 			Abstract1 out_branchout = new Abstract1(man, in);
 			AWrapper out_wrapper = new AWrapper(out);
 			AWrapper out_branchout_wrapper = new AWrapper(out_branchout);	
-			
-
-			
 			
 			if (s instanceof DefinitionStmt) {
 				// call handleDef
@@ -766,9 +763,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				// check if this is a backjumpstmt(i.e. a loop), and if so, check it if has iterated at least 6 times.
 				Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get((JIfStmt)s);
 				if(loopDescriptor != null && loopDescriptor.item1 >= 6){
-					branchOuts.clear();
+					fallOut.clear();
 					//fallOut.add(newInitialFlow()); // add bottom
-					out = in;
+					out_branchout = in;
+					fallOut.add(new AWrapper(new Abstract1(man, env,true)));
 					sprint("Iterated more than 6 times => widening has occured. Moving away from loop...");
 				
 				}else{
@@ -781,12 +779,16 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				}
 			} else if (s instanceof JGotoStmt){
 				JGotoStmt gotoStmt = (JGotoStmt)s;
-				
 				flowThrough(current, gotoStmt.getTarget(), fallOut, branchOuts);
 			} else if (s instanceof InvokeStmt){
 				// call handleInvoke
 				InvokeStmt stmt = (InvokeStmt)s;
 				handleMethodInvoke(out, stmt);
+			} else if (s instanceof JReturnVoidStmt){
+				out = new Abstract1(man, env, true);
+				out_branchout = new Abstract1(man, env, true);
+				fallOut.add(new AWrapper(out));
+				branchOuts.add(new AWrapper(out));
 			} else  {
 				sprint("Unhandled operation: " + last(s.getClass().toString()));
 			}
@@ -1145,6 +1147,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	}
 	
 	public void printGraph(){
-		//System.out.println(g.getBody().toString());
+		System.out.println(g.getBody().toString());
 	}
 }
