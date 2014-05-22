@@ -749,7 +749,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 			Abstract1 in = current.get();
 			Abstract1 out = new Abstract1(man, in);
-			Abstract1 out_branchout = new Abstract1(man, env, true);
+			Abstract1 out_branchout = new Abstract1(man, in);
 			AWrapper out_wrapper = new AWrapper(out);
 			AWrapper out_branchout_wrapper = new AWrapper(out_branchout);	
 			
