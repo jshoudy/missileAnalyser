@@ -72,8 +72,11 @@ import soot.jimple.internal.JMulExpr;
 import soot.jimple.internal.JNeExpr;
 import soot.jimple.internal.JReturnStmt;
 import soot.jimple.internal.JReturnVoidStmt;
+import soot.jimple.internal.JSpecialInvokeExpr;
 import soot.jimple.internal.JSubExpr;
+import soot.jimple.internal.JVirtualInvokeExpr;
 import soot.jimple.internal.JimpleLocal;
+import soot.jimple.spark.pag.Node;
 import soot.jimple.toolkits.annotation.logic.Loop;
 import soot.jimple.toolkits.annotation.logic.LoopFinder;
 import soot.tagkit.IntegerConstantValueTag;
@@ -182,6 +185,16 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				 not_if2 = null,
 				 into_if1 = null,
 				 into_if2 = null;
+		
+		String leftFinalName = getConcreteInstanceVariableName(left.toString());
+		String rightFinalName = getConcreteInstanceVariableName(right.toString());
+		if(constructorCalls.containsKey(leftFinalName) || constructorCalls.containsKey(rightFinalName)){
+			sprint("left or right is missile object");
+			ow = new AWrapper(in);
+			ow_branchout = new AWrapper(in);
+			return;
+		}
+		
 		// handles eq expr
 		if(expr instanceof JEqExpr){
 			JEqExpr j = new JEqExpr(left,right);
@@ -561,7 +574,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 					Linterm1 terml = new Linterm1(varl,new MpqScalar(1));
 					Linterm1 termr = new Linterm1(varr,new MpqScalar(-1));
-
+					
 					Linterm1 terml2 = new Linterm1(varl,new MpqScalar(-1));
 					Linterm1 termr2 = new Linterm1(varr,new MpqScalar(1));
 					
@@ -779,7 +792,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				}
 			} else if (s instanceof JGotoStmt){
 				JGotoStmt gotoStmt = (JGotoStmt)s;
-				flowThrough(current, gotoStmt.getTarget(), fallOut, branchOuts);
+				//flowThrough(current, gotoStmt.getTarget(), fallOut, branchOuts);
 			} else if (s instanceof InvokeStmt){
 				// call handleInvoke
 				InvokeStmt stmt = (InvokeStmt)s;
