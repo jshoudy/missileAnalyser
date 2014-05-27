@@ -144,7 +144,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		this.constructorCalls = new HashMap<String, List<Value>>();
 		this.previousFires = new HashMap<String, List<Interval>>();
 		this.missileBatteryAssignments = new HashMap<String, String>();
-		this.iterationConditionalChangesOverTime = new HashMap<String, Boolean>();
+		this.iterationConditionalChangesOverTime = new HashMap<String, List<Interval>>();
 		buildEnvironment();
 		instantiateDomain();
 		
@@ -805,24 +805,21 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					out_branchout_wrapper = new AWrapper(out_branchout);
 					join(out_branchout_wrapper, cons[0], cons[1]);
 					out_branchout = out_branchout_wrapper.get();
-				}else if(((JIfStmt)s).getCondition() instanceof AbstractBinopExpr &&
+				}else if(((JIfStmt)s).getCondition() instanceof AbstractBinopExpr && 
 						((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1() instanceof JimpleLocal &&
-						iterationConditionalChangesOverTime.containsKey(((JimpleLocal)((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1()).getName())){
+						iterationConditionalChangesOverTime.containsKey(((JimpleLocal)((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1()).getName()) &&
+						iterationConditionalChangesOverTime.get(((JimpleLocal)((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1()).getName()).size() >= 5 &&
+						!hasChanged(iterationConditionalChangesOverTime.get(((JimpleLocal)((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1()).getName()))){
 					
 					JimpleLocal local = (JimpleLocal) ((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1();
 
 					sprint("INFLOPP: JIMPLE LOCAL " + local.getName());
-					Boolean changed = this.iterationConditionalChangesOverTime.get(local.getName());
-					Boolean is_unchanged = ( changed != null && false == changed );
-					sprint("INFLOPP: HAS CHANGED = " + !is_unchanged);
-					if(is_unchanged == true){
-						sprint("INFLOPP: HAS NOT CHANGED! ASSUMING INFINITE LOOP");
-						fallOut.clear();
-						branchOuts.clear();
-						out_branchout = in;
-						fallOut.add(new AWrapper(new Abstract1(man, env,true)));
-					}
-					
+
+					sprint("INFLOPP: HAS NOT CHANGED! ASSUMING INFINITE LOOP");
+					fallOut.clear();
+					branchOuts.clear();
+					out_branchout = in;
+					fallOut.add(new AWrapper(new Abstract1(man, env,true)));
 					
 					
 				}else{
@@ -876,6 +873,20 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		ident--;
 	}
 
+	private Boolean hasChanged(List<Interval> intervals){
+		Boolean changed = false;
+		Interval last = null;
+		for(Interval v : intervals){
+			if(last == null)
+				last = v;
+			if(last.cmp(v) != 0){
+				changed = true;
+				break;
+			}
+		}
+		return changed;
+	}
+	
 	private void handleMethodInvoke(Abstract1 o, InvokeStmt s) throws ApronException {
 		ident++;
 		sprint("Entering handleInvoke " + s);
@@ -992,7 +1003,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	
 	
 	private Map<Stmt, Tuple<Integer, List<Stmt>>> backJumps = new HashMap<Stmt, Tuple<Integer, List<Stmt>>>();
-	private Map<String, Boolean> iterationConditionalChangesOverTime = new HashMap<String, Boolean>();
+	private Map<String, List<Interval>> iterationConditionalChangesOverTime = new HashMap<String, List<Interval>>();
 	
 	// Implement Join
 	// src1 before iteration
@@ -1022,23 +1033,26 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				handleWidening(loopDescriptor, src1, src2, trg);
 			}else{
 				merge(src1,src2,trg);
-			}
-			
-			if(u instanceof JAssignStmt){
-				JAssignStmt assign = (JAssignStmt) u;
-				String varName =  ((JimpleLocal) assign.getLeftOp()).getName();
-				if(varName.startsWith("$")){
-					sprint("Merge unit is JAssignStmt for " + varName);
-					Interval after = trg.get().getBound(man, varName);
-					Interval before = src1.get().getBound(man, varName);
-					
-					if(after.cmp(before) == 0){
-						sprint(" It did not change this iteration");
+				
+				if(u instanceof JAssignStmt){
+					JAssignStmt assign = (JAssignStmt) u;
+					String varName =  ((JimpleLocal) assign.getLeftOp()).getName();
+					if(varName.startsWith("$")){
+						handleDef(src1.get(), assign.getLeftOp(), assign.getRightOp());
+
+						handleDef(trg.get(), assign.getLeftOp(), assign.getRightOp());
+						sprint("INFLOPP: Merge unit is JAssignStmt for " + varName);
+						Interval after = trg.get().getBound(man, varName);
+						
+						sprint("INFLOPP: value = " + after);
+						
 						if(false == iterationConditionalChangesOverTime.containsKey(varName)){
-							iterationConditionalChangesOverTime.put(varName, false);
+							ArrayList<Interval> val = new ArrayList<Interval>();
+							val.add(after);
+							iterationConditionalChangesOverTime.put(varName, val);
+						}else{
+							iterationConditionalChangesOverTime.get(varName).add(after);
 						}
-					}else{
-						iterationConditionalChangesOverTime.put(varName, true);
 					}
 				}
 			}
