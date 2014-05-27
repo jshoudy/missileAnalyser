@@ -151,10 +151,8 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		LoopNestTree loops = new LoopNestTree(g.getBody());
 		for (Loop l : loops) {
 			Stmt h = l.getHead();
-			backJumps.put(h,new Tuple<Integer, List<Stmt>>(new Integer(0), l.getLoopStatements()));
-			
+			backJumps.put(h,new Tuple<Integer, List<Stmt>>(new Integer(0), l.getLoopStatements()));	
 		}
-		
 		
 		sprint("successfully constructed " + jc);
 
@@ -170,32 +168,15 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		System.err.println("Can't handle " + what);
 		System.exit(1);
 	}
-
-	// handle conditionals
-	private void handleIf(AbstractBinopExpr expr, Abstract1 in, AWrapper ow,
-			AWrapper ow_branchout) throws ApronException {
-		ident++;
-
-		Value left = expr.getOp1();
-		Value right = expr.getOp2();
-
-		sprint("called handleIf with expr: " + expr.toString());
+    
+	
+	private Lincons1[] getConstraints(AbstractBinopExpr expr, Value left, Value right){
 
 		Lincons1 not_if1 = null,
 				 not_if2 = null,
 				 into_if1 = null,
 				 into_if2 = null;
 		
-		String leftFinalName = getConcreteInstanceVariableName(left.toString());
-		String rightFinalName = getConcreteInstanceVariableName(right.toString());
-		if(constructorCalls.containsKey(leftFinalName) || constructorCalls.containsKey(rightFinalName)){
-			sprint("left or right is missile object");
-			ow = new AWrapper(in);
-			ow_branchout = new AWrapper(in);
-			return;
-		}
-		
-		// handles eq expr
 		if(expr instanceof JEqExpr){
 			JEqExpr j = new JEqExpr(left,right);
 			if(left instanceof IntConstant){
@@ -598,6 +579,40 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 			unhandled("expr of type 1 " + expr.getType());
 		}
 		
+		Lincons1[] ret = new Lincons1[4];
+		ret[0] = into_if1;
+		ret[1] = into_if2;
+		ret[2] = not_if1;
+		ret[3] = not_if2;
+		return ret;
+	}
+	
+	// handle conditionals
+	private void handleIf(AbstractBinopExpr expr, Abstract1 in, AWrapper ow,
+			AWrapper ow_branchout) throws ApronException {
+		ident++;
+
+		Value left = expr.getOp1();
+		Value right = expr.getOp2();
+
+		sprint("called handleIf with expr: " + expr.toString());
+
+		String leftFinalName = getConcreteInstanceVariableName(left.toString());
+		String rightFinalName = getConcreteInstanceVariableName(right.toString());
+		if(constructorCalls.containsKey(leftFinalName) || constructorCalls.containsKey(rightFinalName)){
+			sprint("left or right is missile object");
+			ow = new AWrapper(in);
+			ow_branchout = new AWrapper(in);
+			return;
+		}
+		
+		Lincons1[] cons = getConstraints(expr, left, right);
+		
+		Lincons1 into_if1 = cons[0],
+				 into_if2 = cons[1],
+				 not_if1 = cons[2],
+				 not_if2 = cons[3];
+		
 		sprint("false: " + ow + " meet " + not_if1 +" join "+ not_if2);
 		sprint("true:" + ow_branchout  + " meet "+ into_if1 +" join "+ into_if2);
 		
@@ -775,12 +790,20 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 				// check if this is a backjumpstmt(i.e. a loop), and if so, check it if has iterated at least 6 times.
 				Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get((JIfStmt)s);
 				if(loopDescriptor != null && loopDescriptor.item1 >= 6){
+					sprint("Iterated more than 6 times => widening has occured. Moving away from loop...");
+				
+					AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
+					sprint("Condition = " + cond.getClass() + ": " + cond);
+					Lincons1[] cons = getConstraints(cond, cond.getOp1(), cond.getOp2());
+					sprint("Constraint if true: " + cons[0] + " + " + cons[1]);
+					
 					fallOut.clear();
 					//fallOut.add(newInitialFlow()); // add bottom
 					out_branchout = in;
 					fallOut.add(new AWrapper(new Abstract1(man, env,true)));
-					sprint("Iterated more than 6 times => widening has occured. Moving away from loop...");
-				
+					out_branchout_wrapper = new AWrapper(out_branchout);
+					join(out_branchout_wrapper, cons[0], cons[1]);
+					out_branchout = out_branchout_wrapper.get();
 				}else{
 					// call handleIf
 					AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
@@ -1175,6 +1198,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	}
 	
 	public void printGraph(){
-		//System.out.println(g.getBody().toString());
+		System.out.println(g.getBody().toString());
 	}
 }

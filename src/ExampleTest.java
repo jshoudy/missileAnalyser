@@ -4,16 +4,17 @@ public class ExampleTest {
 		
 		MissileBattery b = new MissileBattery(6);
 		
-		int i = 0;
-		while (i != 0) {
+		int i = 27;
+		int j;
+		while(i != 26){
 			i++;
-			i--;
+			j = i;
+			while(j != 50){
+				j++;
+			}
 		}
 		
-		b.fire(10);
-		
-		
-		
+		b.fire(i);
 	  }
 }
  
