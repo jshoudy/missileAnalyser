@@ -749,6 +749,21 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					opp = Texpr1BinNode.OP_ADD;
 				} else if(right instanceof JDivExpr){
 					opp = Texpr1BinNode.OP_DIV;
+					JDivExpr d = (JDivExpr) right;
+					Value dl = d.getOp1();
+					Value dr = d.getOp2();
+					Interval dli = getInterval(dl,o);
+					Interval dri = getInterval(dr,o);
+					int dli1 = Integer.parseInt(dli.inf.toString());
+					int dli2 = Integer.parseInt(dli.sup.toString());
+					int dri1 = Integer.parseInt(dri.inf.toString());
+					int dri2 = Integer.parseInt(dri.sup.toString());
+					int newLeftBound = dli1/dri2;
+					int newRightBound = dli2/dri1;
+					if(newRightBound == newLeftBound){
+						lAr = new Texpr1CstNode(new MpqScalar(newLeftBound));
+						rAr = new Texpr1CstNode(new MpqScalar(1));
+					}
 				} else {
 					unhandled("expr of type 2 " + right.getType());
 				}
