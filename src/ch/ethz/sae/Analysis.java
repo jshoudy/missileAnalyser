@@ -949,6 +949,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	
 	private Map<Stmt, Tuple<Integer, List<Stmt>>> backJumps = new HashMap<Stmt, Tuple<Integer, List<Stmt>>>();
 	
+	
 	// Implement Join
 	// src1 before iteration
 	// src2 after executing loop block 
@@ -956,43 +957,26 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	protected void merge(Unit u, AWrapper src1, AWrapper src2, AWrapper trg) {
 
 		ident++;
-		sprint("merge from unit " + u);
-		if(false == u instanceof JIfStmt){
+		sprint("merge from unit (" + u.getClass() + "): " + u);
+		sprint(backJumps.toString());
+		
+		if(false == u instanceof Stmt && false == backJumps.containsKey((Stmt)u)){
 			//printGraph();
 			merge(src1,src2,trg);
+			ident--;
 			return;
 		}
 		printGraph();
-		JIfStmt u2 = (JIfStmt)u;
 		Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get(u);
 		try{
 		if(loopDescriptor != null){ // this is a loop
-			
+			sprint("Iteration " + loopDescriptor.item1);
 			loopDescriptor.item1++;
 			if(loopDescriptor.item1.intValue() >= 6){
 				sprint("Iterated more than 5 times: " + loopDescriptor.item1);
 				
-				int countDefStatements = 0;
-				for(Stmt s : loopDescriptor.item2){
-					if(s instanceof DefinitionStmt)
-						countDefStatements++;
-				}
+				handleWidening(loopDescriptor, src1, src2, trg);
 				
-				Lincons1[] constraints = new Lincons1[countDefStatements];
-				for(int i = 1; i < loopDescriptor.item2.size(); i++){
-					Stmt target = loopDescriptor.item2.get(i);
-					if(target instanceof DefinitionStmt){
-						ident++;
-						sprint("Widening " + target);
-						Lincons1 result = widen((DefinitionStmt) target, src1, src2, trg);
-						constraints[i-1] = (result);
-						ident--;
-					}
-				}
-				
-				trg.set( src2.get().wideningThreshold(man, src1.get(), constraints) );
-				
-				sprint("Done with widening, result: " + trg);
 			}else{
 				merge(src1,src2,trg);
 			}
@@ -1005,6 +989,40 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		
 		ident--;
 		
+	}
+	
+	private void handleWidening(Tuple<Integer, List<Stmt>> loopDescriptor, AWrapper src1, AWrapper src2, AWrapper trg) throws ApronException{
+		int countDefStatements = 0;
+		for(Stmt s : loopDescriptor.item2){
+			if(s instanceof DefinitionStmt)
+				countDefStatements++;
+		}	
+
+		Lincons1[] constraints = new Lincons1[0];
+		for(int i = 1; i < loopDescriptor.item2.size(); i++){
+			Stmt target = loopDescriptor.item2.get(i);
+			if(target instanceof DefinitionStmt){
+				ident++;
+				sprint("Widening " + target);
+				Lincons1 result = widen((DefinitionStmt) target, src1, src2, trg);
+				if(result != null){
+					Lincons1[] temp = new Lincons1[constraints.length+1];
+					for(int q = 0; q < constraints.length; q++){
+						temp[q] = constraints[q];
+					}
+					temp[temp.length-1] = result;
+					constraints = temp;
+				}
+				ident--;
+			}
+		}
+		sprint("src2 = " + src2.get());
+		sprint("src1 = " + src1.get());
+		for(Lincons1 c : constraints)
+			sprint("constraint: " + c);
+		trg.set( src2.get().wideningThreshold(man, src1.get(), constraints) );
+		
+		sprint("Done with widening, result: " + trg);
 	}
 	
 	private Lincons1 widen(DefinitionStmt defStmt, AWrapper src1, AWrapper src2, AWrapper trg) throws ApronException{
