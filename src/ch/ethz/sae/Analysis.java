@@ -144,6 +144,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		this.constructorCalls = new HashMap<String, List<Value>>();
 		this.previousFires = new HashMap<String, List<Interval>>();
 		this.missileBatteryAssignments = new HashMap<String, String>();
+		this.iterationConditionalChangesOverTime = new HashMap<String, Boolean>();
 		buildEnvironment();
 		instantiateDomain();
 		
@@ -804,6 +805,26 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 					out_branchout_wrapper = new AWrapper(out_branchout);
 					join(out_branchout_wrapper, cons[0], cons[1]);
 					out_branchout = out_branchout_wrapper.get();
+				}else if(((JIfStmt)s).getCondition() instanceof AbstractBinopExpr &&
+						((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1() instanceof JimpleLocal &&
+						iterationConditionalChangesOverTime.containsKey(((JimpleLocal)((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1()).getName())){
+					
+					JimpleLocal local = (JimpleLocal) ((AbstractBinopExpr)((JIfStmt)s).getCondition()).getOp1();
+
+					sprint("INFLOPP: JIMPLE LOCAL " + local.getName());
+					Boolean changed = this.iterationConditionalChangesOverTime.get(local.getName());
+					Boolean is_unchanged = ( changed != null && false == changed );
+					sprint("INFLOPP: HAS CHANGED = " + !is_unchanged);
+					if(is_unchanged == true){
+						sprint("INFLOPP: HAS NOT CHANGED! ASSUMING INFINITE LOOP");
+						fallOut.clear();
+						branchOuts.clear();
+						out_branchout = in;
+						fallOut.add(new AWrapper(new Abstract1(man, env,true)));
+					}
+					
+					
+					
 				}else{
 					// call handleIf
 					AbstractBinopExpr cond = (AbstractBinopExpr) ((JIfStmt) s).getCondition();
@@ -971,7 +992,7 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	
 	
 	private Map<Stmt, Tuple<Integer, List<Stmt>>> backJumps = new HashMap<Stmt, Tuple<Integer, List<Stmt>>>();
-	
+	private Map<String, Boolean> iterationConditionalChangesOverTime = new HashMap<String, Boolean>();
 	
 	// Implement Join
 	// src1 before iteration
@@ -981,9 +1002,9 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 
 		ident++;
 		sprint("merge from unit (" + u.getClass() + "): " + u);
-		sprint(backJumps.toString());
+		sprint("backjumps = " + backJumps.toString());
 		
-		if(false == u instanceof Stmt && false == backJumps.containsKey((Stmt)u)){
+		if(false == u instanceof Stmt  ||  false == backJumps.containsKey((Stmt)u)){
 			//printGraph();
 			merge(src1,src2,trg);
 			ident--;
@@ -993,16 +1014,35 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 		Tuple<Integer, List<Stmt>> loopDescriptor = backJumps.get(u);
 		try{
 		if(loopDescriptor != null){ // this is a loop
-			sprint("Iteration " + loopDescriptor.item1);
 			loopDescriptor.item1++;
+			sprint("Iteration " + loopDescriptor.item1);
 			if(loopDescriptor.item1.intValue() >= 6){
 				sprint("Iterated more than 5 times: " + loopDescriptor.item1);
 				
 				handleWidening(loopDescriptor, src1, src2, trg);
-				
 			}else{
 				merge(src1,src2,trg);
 			}
+			
+			if(u instanceof JAssignStmt){
+				JAssignStmt assign = (JAssignStmt) u;
+				String varName =  ((JimpleLocal) assign.getLeftOp()).getName();
+				if(varName.startsWith("$")){
+					sprint("Merge unit is JAssignStmt for " + varName);
+					Interval after = trg.get().getBound(man, varName);
+					Interval before = src1.get().getBound(man, varName);
+					
+					if(after.cmp(before) == 0){
+						sprint(" It did not change this iteration");
+						if(false == iterationConditionalChangesOverTime.containsKey(varName)){
+							iterationConditionalChangesOverTime.put(varName, false);
+						}
+					}else{
+						iterationConditionalChangesOverTime.put(varName, true);
+					}
+				}
+			}
+			
 			backJumps.put((Stmt)u, loopDescriptor);
 		}
 		
@@ -1191,6 +1231,10 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	}
 	
 	public void sprint(String what){
+		if(false){
+			return;
+		}
+		
 		for (int i = 0; i < this.ident; i++){
 			System.out.print("  ");
 		}
@@ -1198,6 +1242,6 @@ public class Analysis extends ForwardBranchedFlowAnalysis<AWrapper> {
 	}
 	
 	public void printGraph(){
-		System.out.println(g.getBody().toString());
+		//System.out.println(g.getBody().toString());
 	}
 }

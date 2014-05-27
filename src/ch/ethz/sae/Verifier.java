@@ -41,6 +41,7 @@ public class Verifier {
 		} else {
 			System.out.println("Program " + analyzedClass + " is UNSAFE");
 		}
+		
 	}
 
 	private static SootClass loadClass(String name) {

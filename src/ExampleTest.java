@@ -1,20 +1,13 @@
 public class ExampleTest {
 	public static void l() {
 		
+		MissileBattery a = new MissileBattery(4);
+		MissileBattery b = a;
+		int i = 3;
+		int p = 1;
+		if(i+p < 10)
+			b.fire(5);
 		
-		MissileBattery b = new MissileBattery(6);
-		
-		int i = 27;
-		int j;
-		while(i != 26){
-			i++;
-			j = i;
-			while(j != 50){
-				j++;
-			}
-		}
-		
-		b.fire(i);
 	  }
 }
  
